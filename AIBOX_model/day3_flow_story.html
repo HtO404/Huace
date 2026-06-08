@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day3 — 读懂自己的脚本流程 + 找 Bug</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=ZCOOL+KuaiLe&family=Ma+Shan+Zheng&display=swap');
+
+  :root {
+    --bg: #0f0f1a;
+    --bg-card: #1a1a2e;
+    --bg-card-hover: #1f1f35;
+    --border: #2a2a4a;
+    --border-glow: #4a4a8a;
+    --cyan: #00e5ff;
+    --pink: #ff4081;
+    --green: #69f0ae;
+    --yellow: #ffd600;
+    --orange: #ff9100;
+    --red: #ff1744;
+    --purple: #b388ff;
+    --text: #e0e0f0;
+    --text-dim: #8888aa;
+    --text-bright: #ffffff;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --shadow-glow: 0 0 30px rgba(0,229,255,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 400;
+    line-height: 1.9;
+    overflow-x: hidden;
+  }
+
+  /* === 星空背景 === */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1px 1px at 30% 60%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1.5px 1.5px at 50% 10%, rgba(255,255,255,0.5), transparent),
+      radial-gradient(1px 1px at 70% 40%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1px 1px at 90% 80%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1.5px 1.5px at 20% 90%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1px 1px at 60% 70%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1px 1px at 80% 15%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1.5px 1.5px at 40% 45%, rgba(255,255,255,0.5), transparent),
+      radial-gradient(1px 1px at 15% 55%, rgba(255,255,255,0.3), transparent);
+    pointer-events: none;
+    z-index: 0;
+    animation: twinkle 4s ease-in-out infinite alternate;
+  }
+
+  @keyframes twinkle {
+    0% { opacity: 0.6; }
+    100% { opacity: 1; }
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* === 标题区 === */
+  .hero {
+    text-align: center;
+    padding: 80px 20px 60px;
+    position: relative;
+  }
+
+  .hero h1 {
+    font-family: 'ZCOOL KuaiLe', cursive;
+    font-size: clamp(2.2rem, 7vw, 4rem);
+    background: linear-gradient(135deg, var(--cyan) 0%, var(--purple) 50%, var(--pink) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: heroGlow 4s ease-in-out infinite;
+    letter-spacing: 2px;
+  }
+
+  @keyframes heroGlow {
+    0%, 100% { filter: brightness(1) drop-shadow(0 0 10px rgba(0,229,255,0.3)); }
+    50% { filter: brightness(1.2) drop-shadow(0 0 20px rgba(179,136,255,0.5)); }
+  }
+
+  .hero .tagline {
+    color: var(--text-dim);
+    font-size: 1.15rem;
+    margin-top: 12px;
+    font-weight: 300;
+  }
+
+  .hero .badge {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--cyan), var(--purple));
+    color: var(--bg);
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 4px 16px;
+    border-radius: 20px;
+    margin-top: 20px;
+  }
+
+  /* === 章节 === */
+  .chapter {
+    margin: 60px 0;
+    opacity: 0;
+    transform: translateY(40px);
+    animation: fadeInUp 0.8s ease-out forwards;
+  }
+
+  .chapter:nth-child(2) { animation-delay: 0.1s; }
+  .chapter:nth-child(3) { animation-delay: 0.2s; }
+  .chapter:nth-child(4) { animation-delay: 0.3s; }
+  .chapter:nth-child(5) { animation-delay: 0.4s; }
+  .chapter:nth-child(6) { animation-delay: 0.5s; }
+  .chapter:nth-child(7) { animation-delay: 0.6s; }
+  .chapter:nth-child(8) { animation-delay: 0.7s; }
+
+  @keyframes fadeInUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .chapter-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .chapter-num {
+    font-family: 'ZCOOL KuaiLe', cursive;
+    font-size: 2.5rem;
+    color: var(--cyan);
+    text-shadow: 0 0 20px rgba(0,229,255,0.4);
+    line-height: 1;
+  }
+
+  .chapter-title {
+    font-family: 'ZCOOL KuaiLe', cursive;
+    font-size: 1.6rem;
+    color: var(--text-bright);
+  }
+
+  /* === 卡片 === */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin: 20px 0;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow);
+  }
+
+  .card:hover {
+    border-color: var(--border-glow);
+    background: var(--bg-card-hover);
+    box-shadow: var(--shadow), var(--shadow-glow);
+    transform: translateY(-2px);
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--cyan), var(--purple), var(--pink));
+  }
+
+  .card-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    font-size: 0.8rem;
+    padding: 3px 12px;
+    border-radius: 6px;
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .card-label.flow { background: rgba(0,229,255,0.15); color: var(--cyan); }
+  .card-label.bug { background: rgba(255,23,68,0.15); color: var(--red); }
+  .card-label.tip { background: rgba(105,240,174,0.15); color: var(--green); }
+  .card-label.warn { background: rgba(255,145,0,0.15); color: var(--orange); }
+  .card-label.code { background: rgba(179,136,255,0.15); color: var(--purple); }
+
+  /* === 流程图 === */
+  .flow-chart {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 20px 0;
+  }
+
+  .flow-node {
+    background: linear-gradient(135deg, #1a1a3a, #252550);
+    border: 2px solid var(--cyan);
+    border-radius: 12px;
+    padding: 14px 24px;
+    text-align: center;
+    min-width: 220px;
+    position: relative;
+    transition: all 0.3s;
+    animation: nodeAppear 0.5s ease-out both;
+  }
+
+  .flow-node:hover {
+    border-color: var(--purple);
+    box-shadow: 0 0 20px rgba(179,136,255,0.3);
+    transform: scale(1.03);
+  }
+
+  .flow-node.start {
+    border-color: var(--green);
+    background: linear-gradient(135deg, #0a2a1a, #1a3a2a);
+  }
+
+  .flow-node.end {
+    border-color: var(--yellow);
+    background: linear-gradient(135deg, #2a2a0a, #3a3a1a);
+  }
+
+  .flow-node.bug-node {
+    border-color: var(--red);
+    background: linear-gradient(135deg, #2a0a0a, #3a1a1a);
+    animation: bugPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes bugPulse {
+    0%, 100% { box-shadow: 0 0 10px rgba(255,23,68,0.2); }
+    50% { box-shadow: 0 0 25px rgba(255,23,68,0.5); }
+  }
+
+  @keyframes nodeAppear {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .flow-node .node-title {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--text-bright);
+  }
+
+  .flow-node .node-desc {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  .flow-arrow {
+    font-size: 1.8rem;
+    color: var(--cyan);
+    margin: 4px 0;
+    animation: arrowBounce 1.5s ease-in-out infinite;
+  }
+
+  @keyframes arrowBounce {
+    0%, 100% { transform: translateY(0); opacity: 0.6; }
+    50% { transform: translateY(6px); opacity: 1; }
+  }
+
+  /* === 代码块 === */
+  .code-block {
+    background: #0a0a15;
+    border: 1px solid #2a2a4a;
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin: 16px 0;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.88rem;
+    line-height: 1.7;
+    overflow-x: auto;
+    position: relative;
+  }
+
+  .code-block .kw { color: #569cd6; }
+  .code-block .fn { color: #dcdcaa; }
+  .code-block .str { color: #ce9178; }
+  .code-block .num { color: #b5cea8; }
+  .code-block .cm { color: #6a9955; font-style: italic; }
+  .code-block .dec { color: #c586c0; }
+  .code-block .op { color: #d4d4d4; }
+  .code-block .var { color: #9cdcfe; }
+
+  .code-block .hl-pink {
+    background: rgba(255,64,129,0.12);
+    margin: 0 -22px;
+    padding: 2px 22px;
+    border-left: 3px solid var(--pink);
+    display: block;
+  }
+
+  .code-block .hl-cyan {
+    background: rgba(0,229,255,0.08);
+    margin: 0 -22px;
+    padding: 2px 22px;
+    border-left: 3px solid var(--cyan);
+    display: block;
+  }
+
+  .code-block .hl-red {
+    background: rgba(255,23,68,0.12);
+    margin: 0 -22px;
+    padding: 2px 22px;
+    border-left: 3px solid var(--red);
+    display: block;
+  }
+
+  .code-block .hl-green {
+    background: rgba(105,240,174,0.08);
+    margin: 0 -22px;
+    padding: 2px 22px;
+    border-left: 3px solid var(--green);
+    display: block;
+  }
+
+  .code-block .hl-yellow {
+    background: rgba(255,214,0,0.08);
+    margin: 0 -22px;
+    padding: 2px 22px;
+    border-left: 3px solid var(--yellow);
+    display: block;
+  }
+
+  /* === 对话气泡 === */
+  .bubble {
+    position: relative;
+    padding: 14px 20px;
+    border-radius: 16px;
+    margin: 16px 0;
+    max-width: 85%;
+    font-size: 0.95rem;
+  }
+
+  .bubble.cyan {
+    background: rgba(0,229,255,0.08);
+    border: 1.5px solid var(--cyan);
+    color: var(--text);
+  }
+
+  .bubble.pink {
+    background: rgba(255,64,129,0.08);
+    border: 1.5px solid var(--pink);
+    color: var(--text);
+  }
+
+  .bubble.green {
+    background: rgba(105,240,174,0.08);
+    border: 1.5px solid var(--green);
+    color: var(--text);
+  }
+
+  .bubble.red {
+    background: rgba(255,23,68,0.08);
+    border: 1.5px solid var(--red);
+    color: var(--text);
+  }
+
+  .bubble.yellow {
+    background: rgba(255,214,0,0.08);
+    border: 1.5px solid var(--yellow);
+    color: var(--text);
+  }
+
+  .bubble .speaker {
+    font-weight: 700;
+    font-size: 0.8rem;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .bubble.cyan .speaker { color: var(--cyan); }
+  .bubble.pink .speaker { color: var(--pink); }
+  .bubble.green .speaker { color: var(--green); }
+  .bubble.red .speaker { color: var(--red); }
+  .bubble.yellow .speaker { color: var(--yellow); }
+
+  /* === 提示框 === */
+  .callout {
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin: 20px 0;
+    position: relative;
+    border-left: 4px solid;
+  }
+
+  .callout.info {
+    background: rgba(0,229,255,0.06);
+    border-color: var(--cyan);
+  }
+
+  .callout.danger {
+    background: rgba(255,23,68,0.06);
+    border-color: var(--red);
+  }
+
+  .callout.warning {
+    background: rgba(255,145,0,0.06);
+    border-color: var(--orange);
+  }
+
+  .callout.success {
+    background: rgba(105,240,174,0.06);
+    border-color: var(--green);
+  }
+
+  .callout .icon {
+    font-size: 1.3rem;
+    margin-right: 8px;
+  }
+
+  .callout strong {
+    color: var(--text-bright);
+  }
+
+  /* === 场景动画 === */
+  .scene {
+    background: #0d0d20;
+    border-radius: 12px;
+    padding: 24px;
+    margin: 16px 0;
+    border: 1px dashed var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .scene::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,229,255,0.01) 2px,
+      rgba(0,229,255,0.01) 4px
+    );
+    pointer-events: none;
+  }
+
+  /* === 角色 === */
+  .actor {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 8px 16px;
+    transition: all 0.4s;
+  }
+
+  .actor .face {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    margin-bottom: 6px;
+    position: relative;
+  }
+
+  .actor .label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-align: center;
+    color: var(--text-dim);
+  }
+
+  .actor.main .face {
+    background: linear-gradient(135deg, var(--cyan), #0091ea);
+    box-shadow: 0 0 18px rgba(0,229,255,0.4);
+    animation: mainPulse 3s ease-in-out infinite;
+  }
+
+  @keyframes mainPulse {
+    0%, 100% { box-shadow: 0 0 18px rgba(0,229,255,0.3); }
+    50% { box-shadow: 0 0 30px rgba(0,229,255,0.6); }
+  }
+
+  .actor.phone .face {
+    background: linear-gradient(135deg, var(--green), #00c853);
+    box-shadow: 0 0 18px rgba(105,240,174,0.3);
+  }
+
+  .actor.bug .face {
+    background: linear-gradient(135deg, var(--red), #d50000);
+    box-shadow: 0 0 18px rgba(255,23,68,0.4);
+    animation: bugShake 0.8s ease-in-out infinite;
+  }
+
+  @keyframes bugShake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px) rotate(-3deg); }
+    75% { transform: translateX(4px) rotate(3deg); }
+  }
+
+  .actor.ghost .face {
+    background: linear-gradient(135deg, var(--purple), #7c4dff);
+    box-shadow: 0 0 18px rgba(179,136,255,0.3);
+    animation: ghostFloat 2.5s ease-in-out infinite;
+  }
+
+  @keyframes ghostFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  /* === 时间线 === */
+  .timeline {
+    position: relative;
+    padding-left: 32px;
+    margin: 16px 0;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--cyan), var(--purple), var(--pink));
+  }
+
+  .tl-item {
+    position: relative;
+    margin: 12px 0;
+    padding: 10px 16px;
+    background: rgba(26,26,58,0.6);
+    border-radius: 8px;
+    border-left: 3px solid var(--cyan);
+    transition: all 0.3s;
+  }
+
+  .tl-item:hover {
+    background: rgba(26,26,58,0.9);
+    transform: translateX(4px);
+  }
+
+  .tl-item::before {
+    content: '';
+    position: absolute;
+    left: -27px;
+    top: 16px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--cyan);
+    box-shadow: 0 0 8px rgba(0,229,255,0.5);
+  }
+
+  .tl-item.danger {
+    border-left-color: var(--red);
+  }
+  .tl-item.danger::before {
+    background: var(--red);
+    box-shadow: 0 0 8px rgba(255,23,68,0.5);
+  }
+
+  .tl-item.success {
+    border-left-color: var(--green);
+  }
+  .tl-item.success::before {
+    background: var(--green);
+    box-shadow: 0 0 8px rgba(105,240,174,0.5);
+  }
+
+  .tl-item.warn {
+    border-left-color: var(--orange);
+  }
+  .tl-item.warn::before {
+    background: var(--orange);
+    box-shadow: 0 0 8px rgba(255,145,0,0.5);
+  }
+
+  /* === 表格 === */
+  .tbl {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 16px 0;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .tbl th {
+    background: #1a1a3a;
+    color: var(--cyan);
+    font-weight: 700;
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 0.9rem;
+  }
+
+  .tbl td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+
+  .tbl .ok { color: var(--green); }
+  .tbl .no { color: var(--red); }
+
+  /* === Bug 标记 === */
+  .bug-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,23,68,0.15);
+    border: 1px solid var(--red);
+    color: var(--red);
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 4px 14px;
+    border-radius: 8px;
+    margin: 8px 0;
+  }
+
+  /* === 进度指示器 === */
+  .progress-track {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0;
+  }
+
+  .progress-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: all 0.3s;
+  }
+
+  .progress-dot.active {
+    background: var(--cyan);
+    box-shadow: 0 0 8px rgba(0,229,255,0.5);
+  }
+
+  .progress-dot.done {
+    background: var(--green);
+    box-shadow: 0 0 8px rgba(105,240,174,0.5);
+  }
+
+  .progress-dot.bug {
+    background: var(--red);
+    box-shadow: 0 0 8px rgba(255,23,68,0.5);
+    animation: bugPulse 1.5s ease-in-out infinite;
+  }
+
+  .progress-line {
+    flex: 1;
+    height: 2px;
+    background: var(--border);
+  }
+
+  /* === 底部 === */
+  .footer {
+    text-align: center;
+    padding: 50px 20px 40px;
+    color: var(--text-dim);
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+  }
+
+  .footer .next-day {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--cyan), var(--purple));
+    color: var(--bg);
+    font-weight: 700;
+    padding: 10px 28px;
+    border-radius: 30px;
+    font-size: 1rem;
+    margin-top: 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .footer .next-day:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(0,229,255,0.4);
+  }
+
+  /* === 响应式 === */
+  @media (max-width: 640px) {
+    .card { padding: 18px; }
+    .code-block { font-size: 0.8rem; padding: 14px 16px; }
+    .actor .face { width: 44px; height: 44px; font-size: 1.3rem; }
+    .bubble { max-width: 95%; }
+    .flow-node { min-width: 180px; padding: 10px 16px; }
+    .chapter-num { font-size: 2rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- 标题 -->
+  <div class="hero">
+    <h1>🔍 Day3：读懂自己的脚本</h1>
+    <p class="tagline">从入口到出口，逐行追踪测试流程，找出隐藏的 Bug</p>
+    <span class="badge">📖 基于 运营商切换 copy.py</span>
+  </div>
+
+  <!-- 第一章：测试的完整流程 -->
+  <div class="chapter">
+    <div class="chapter-header">
+      <span class="chapter-num">01</span>
+      <h2 class="chapter-title">测试的完整流程是什么？</h2>
+    </div>
+
+    <div class="card">
+      <span class="card-label flow">📋 全局流程图</span>
+      <p>你的脚本从 <code>main()</code> 函数开始，到 <code>_generate_summary()</code> 结束。中间经历了 <strong>6 个关键阶段</strong>：</p>
+
+      <div class="scene">
+        <div class="flow-chart">
+          <div class="flow-node start" style="animation-delay: 0.1s">
+            <div class="node-title">🚀 main() 入口</div>
+            <div class="node-desc">用户输入循环次数、导出编号</div>
+          </div>
+          <div class="flow-arrow">⬇️</div>
+          <div class="flow-node" style="animation-delay: 0.2s">
+            <div class="node-title">📱 连接设备</div>
+            <div class="node-desc">u2.connect() + ADB 检查</div>
+          </div>
+          <div class="flow-arrow">⬇️</div>
+          <div class="flow-node" style="animation-delay: 0.3s">
+            <div class="node-title">🧭 导航到页面</div>
+            <div class="node-desc">navigate_to_operator_page()</div>
+          </div>
+          <div class="flow-arrow">⬇️</div>
+          <div class="flow-node" style="animation-delay: 0.4s">
+            <div class="node-title">🔄 循环 N 次</div>
+            <div class="node-desc">run_single_cycle(i)</div>
+          </div>
+          <div class="flow-arrow">⬇️</div>
+          <div class="flow-node" style="animation-delay: 0.5s">
+            <div class="node-title">📊 生成汇总</div>
+            <div class="node-desc">_generate_summary()</div>
+          </div>
+          <div class="flow-arrow">⬇️</div>
+          <div class="flow-node end" style="animation-delay: 0.6s">
+            <div class="node-title">✅ 测试完成</div>
+            <div class="node-desc">输出 CSV + 日志文件路径</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <span class="icon">💡</span>
+        <strong>面试怎么说：</strong>"我的测试流程分 6 步：初始化 → 连设备 → 导航到目标页面 → 循环切换运营商 → 汇总统计 → 输出报告。每一步都有日志记录，异常会捕获并继续下一轮。"
+      </div>
+    </div>
+  </div>
+
+  <!-- 第二章：main() 入口 -->
+  <div class="chapter">
+    <div class="chapter-header">
+      <span class="chapter-num">02</span>
+      <h2 class="chapter-title">main() 入口 — 用户输入</h2>
+    </div>
+
+    <div class="card">
+      <span class="card-label code">📝 脚本第 496-530 行</span>
+
+      <div class="code-block">
+<span class="kw">def</span> <span class="fn">main</span>():
+    <span class="cm"># 1. 用户输入</span>
+    cycle_times_input = <span class="fn">int</span>(<span class="fn">input</span>(<span class="str">"请输入循环执行次数: "</span>))
+    export_num = <span class="fn">int</span>(<span class="fn">input</span>(<span class="str">"请输入导出次数: "</span>))
+
+<span class="hl-cyan">    <span class="cm"># 2. 创建测试实例（此时用的是 config.ini 的默认值）</span></span>
+<span class="hl-cyan">    test = OperatorSwitchTest()</span>
+
+<span class="hl-pink">    <span class="cm"># 3. 用用户输入覆盖 config.ini 的值</span></span>
+<span class="hl-pink">    test.test_params[<span class="str">'cycle_times'</span>] = cycle_times_input</span>
+<span class="hl-pink">    test.output_config[<span class="str">'base_export_num'</span>] = export_num</span>
+
+<span class="hl-yellow">    <span class="cm"># 4. 重新创建 logger 和 csv_reporter（因为 export_num 变了）</span></span>
+<span class="hl-yellow">    test.csv_reporter = CSVReporter(...)</span>
+<span class="hl-yellow">    test.logger = LogManager(...)</span>
+
+    <span class="cm"># 5. 执行测试</span>
+    test.run()
+      </div>
+
+      <div class="callout warning">
+        <span class="icon">⚠️</span>
+        <strong>这里有个设计问题：</strong>先创建了 <code>OperatorSwitchTest()</code>，再覆盖参数，再重新创建 logger。这意味着 <code>__init__</code> 里已经用默认值创建了日志和 CSV 文件，后来又被替换了。更好的做法是：<strong>先收集用户输入，再创建实例</strong>。
+      </div>
+    </div>
+  </div>
+
+  <!-- 第三章：run() 核心流程 -->
+  <div class="chapter">
+    <div class="chapter-header">
+      <span class="chapter-num">03</span>
+      <h2 class="chapter-title">run() — 核心测试流程</h2>
+    </div>
+
+    <div class="card">
+      <span class="card-label flow">🔄 脚本第 395-440 行</span>
+      <p><code>run()</code> 是整个脚本的<strong>心脏</strong>。它做了 5 件事：</p>
+
+      <div class="scene">
+        <div class="timeline">
+          <div class="tl-item">
+            <strong>① 检查 ADB 设备</strong><br>
+            <code>ADBChecker.check()</code> → 没连上直接 return
+          </div>
+          <div class="tl-item">
+            <strong>② 连接 uiautomator2</strong><br>
+            <code>self.connect_device()</code> → 截图 init
+          </div>
+          <div class="tl-item">
+            <strong>③ 导航到运营商页面</strong><br>
+            <code>navigate_to_operator_page()</code> → 截图 page_ready
+          </div>
+          <div class="tl-item success">
+            <strong>④ 循环 N 次</strong><br>
+            <code>for i in range(1, cycle_times + 1):</code><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<code>run_single_cycle(i)</code>
+          </div>
+          <div class="tl-item">
+            <strong>⑤ 生成汇总</strong><br>
+            <code>_generate_summary()</code>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <span class="icon">💡</span>
+        <strong>异常处理策略：</strong>run() 里用了两种 catch：<br>
+        • <code>ConnectionError / OSError</code> → 致命错误，<code>break</code> 终止循环<br>
+        • <code>Exception</code> → 非致命错误，<code>continue</code> 继续下一轮
+      </div>
+    </div>
+  </div>
+
+  <!-- 第四章：run_single_cycle 逐轮执行 -->
+  <div class="chapter">
+    <div class="chapter-header">
+      <span class="chapter-num">04</span>
+      <h2 class="chapter-title">run_single_cycle — 每一轮在做什么？</h2>
+    </div>
+
+    <div class="card">
+      <span class="card-label flow">🔁 脚本第 348-392 行</span>
+      <p>每一轮循环，会依次切换 <strong>3 个运营商</strong>：</p>
+
+      <div class="scene">
+        <div class="flow-chart">
+          <div class="flow-node start">
+            <div class="node-title">🔁 第 N 轮循环开始</div>
+            <div class="node-desc">run_single_cycle(cycle_num)</div>
+          </div>
+          <div class="flow-arrow">⬇️</div>
+          <div class="flow-node">
+            <div class="node-title">📡 切换 → 中国联通</div>
+            <div class="node-desc">switch_operator(联通, cycle_num)</div>
+          </div>
+          <div class="flow-arrow">⬇️</div>
+          <div class="flow-node">
+            <div class="node-title">📝 写 CSV 结果</div>
+            <div class="node-desc">csv_reporter.write_result(...)</div>
+          </div>
+          <div class="flow-arrow">⬇️</div>
+          <div class="flow-node">
+            <div class="node-title">📡 切换 → 中国电信</div>
+            <div class="node-desc">switch_operator(电信, cycle_num)</div>
+          </div>
+          <div class="flow-arrow">⬇️</div>
+          <div class="flow-node">
+            <div class="node-title">📝 写 CSV 结果</div>
+            <div class="node-desc">csv_reporter.write_result(...)</div>
+          </div>
+          <div class="flow-arrow">⬇️</div>
+          <div class="flow-node">
+            <div class="node-title">📡 切换 → 中国移动</div>
+            <div class="node-desc">switch_operator(移动, cycle_num)</div>
+          </div>
+          <div class="flow-arrow">⬇️</div>
+          <div class="flow-node end">
+            <div class="node-title">✅ 本轮完成</div>
+            <div class="node-desc">等待间隔时间 → 下一轮</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <span class="icon">💡</span>
+        <strong>每轮 = 3 次切换</strong>。如果循环 100 次，总共执行 <strong>300 次</strong>运营商切换操作。每次切换成功/失败都会写入 CSV 一行。
+      </div>
+    </div>
+  </div>
+
+  <!-- 第五章：switch_operator 详细流程 -->
+  <div class="chapter">
+    <div class="chapter-header">
+      <span class="chapter-num">05</span>
+      <h2 class="chapter-title">switch_operator — 一次切换的完整过程</h2>
+    </div>
+
+    <div class="card">
+      <span class="card-label flow">📡 脚本第 120-158 行</span>
+      <p>这是整个脚本<strong>最核心的方法</strong>。一次切换经历了 5 步：</p>
+
+      <div class="scene">
+        <div class="timeline">
+          <div class="tl-item">
+            <strong>Step 1：找控件</strong><br>
+            <code>operator_elem = self.device(text="中国联通")</code><br>
+            <code>operator_elem.wait(timeout=10)</code><br>
+            <span style="color: var(--text-dim);">等 10 秒，找不到就上滑再找</span>
+          </div>
+          <div class="tl-item">
+            <strong>Step 2：点击</strong><br>
+            <code>operator_elem.click()</code><br>
+            <span style="color: var(--text-dim);">点击运营商按钮</span>
+          </div>
+          <div class="tl-item warn">
+            <strong>Step 3：⚠️ 等待加载弹窗（被注释掉了！）</strong><br>
+            <code style="text-decoration: line-through; color: var(--text-dim);"># success, elapsed = self.wait_loading_dialog()</code><br>
+            <span style="color: var(--red);">🐛 BUG #1：注释掉了，没等加载完就去检查</span>
+          </div>
+          <div class="tl-item">
+            <strong>Step 4：检查结果</strong><br>
+            <code>self.check_operator_switch()</code><br>
+            <span style="color: var(--text-dim);">等 network_level 元素出现（最多 200 秒）</span>
+          </div>
+          <div class="tl-item success">
+            <strong>Step 5：返回结果</strong><br>
+            <code>return True/False, elapsed_ms, remark</code><br>
+            <span style="color: var(--text-dim);">返回 (成功?, 耗时, 备注)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bug #1 -->
+  <div class="chapter">
+    <div class="chapter-header">
+      <span class="chapter-num">🐛</span>
+      <h2 class="chapter-title">Bug #1：注释掉了等待逻辑</h2>
+    </div>
+
+    <div class="card">
+      <span class="card-label bug">🚨 致命 Bug</span>
+
+      <div class="code-block">
+<span class="cm"># 脚本第 145-152 行（被注释掉了）</span>
+<span class="hl-red"><span class="cm"># timeout_val = self.test_params['operator_switch_timeout']</span></span>
+<span class="hl-red"><span class="cm"># success, elapsed = self.wait_loading_dialog(timeout=timeout_val)</span></span>
+<span class="hl-red"><span class="cm"># if not success:</span></span>
+<span class="hl-red"><span class="cm">#     return False, elapsed, "等待加载弹窗超时"</span></span>
+      </div>
+
+      <div class="scene">
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 280px;">
+            <h3 style="color: var(--red); margin-bottom: 12px;">❌ 注释掉之后发生了什么</h3>
+            <div class="timeline">
+              <div class="tl-item danger">
+                <strong>0.0 秒</strong>：点击"中国联通"按钮
+              </div>
+              <div class="tl-item danger">
+                <strong>0.1 秒</strong>：App 开始加载，弹出 loading 动画
+              </div>
+              <div class="tl-item danger">
+                <strong>0.2 秒</strong>：<strong>没等 loading 消失</strong>，直接去检查 network_level
+              </div>
+              <div class="tl-item danger">
+                <strong>0.3 秒</strong>：network_level 元素还不存在（因为还在加载）
+              </div>
+              <div class="tl-item danger">
+                <strong>结果</strong>：<strong>误判为失败</strong>！其实切换成功了，只是没等加载完
+              </div>
+            </div>
+          </div>
+
+          <div style="flex: 1; min-width: 280px;">
+            <h3 style="color: var(--green); margin-bottom: 12px;">✅ 正确的流程应该是</h3>
+            <div class="timeline">
+              <div class="tl-item">
+                <strong>0.0 秒</strong>：点击"中国联通"按钮
+              </div>
+              <div class="tl-item">
+                <strong>0.1 秒</strong>：App 开始加载，弹出 loading 动画
+              </div>
+              <div class="tl-item success">
+                <strong>0.2~5.0 秒</strong>：<strong>等待 loading 消失</strong>
+              </div>
+              <div class="tl-item success">
+                <strong>5.1 秒</strong>：检查 network_level 元素
+              </div>
+              <div class="tl-item success">
+                <strong>结果</strong>：<strong>正确判断</strong>成功或失败
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout danger">
+        <span class="icon">🚨</span>
+        <strong>面试怎么说：</strong>"我发现了脚本里一个 bug：switch_operator() 方法里，等待加载弹窗的代码被注释掉了。这导致点击运营商按钮后，没有等待 App 加载完成就去检查结果，容易误判为失败。修复方法是取消注释，或者加一个 <code>time.sleep(3)</code> 等待加载。"
+      </div>
+    </div>
+  </div>
+
+  <!-- Bug #2 -->
+  <div class="chapter">
+    <div class="chapter-header">
+      <span class="chapter-num">🐛</span>
+      <h2 class="chapter-title">Bug #2：卡死检测写了但没被调用</h2>
+    </div>
+
+    <div class="card">
+      <span class="card-label bug">🚨 幽灵代码</span>
+
+      <div class="code-block">
+<span class="cm"># 脚本里写了这两个方法：</span>
+<span class="kw">def</span> <span class="fn">check_freeze</span>(self) -> <span class="kw">bool</span>:    <span class="cm"># 第 268 行</span>
+    <span class="cm">"""检测是否卡死"""</span>
+    ...
+
+<span class="kw">def</span> <span class="fn">handle_freeze</span>(self) -> <span class="kw">bool</span>:   <span class="cm"># 第 335 行</span>
+    <span class="cm">"""处理卡死情况"""</span>
+    ...
+
+<span class="hl-red"><span class="cm"># 但是！run_single_cycle() 里从来没有调用过它们！</span></span>
+      </div>
+
+      <div class="scene">
+        <div style="display: flex; justify-content: center; gap: 30px; flex-wrap: wrap;">
+          <div class="actor ghost">
+            <div class="face">👻</div>
+            <div class="label">check_freeze()</div>
+          </div>
+          <div class="actor ghost">
+            <div class="face">👻</div>
+            <div class="label">handle_freeze()</div>
+          </div>
+        </div>
+        <p style="text-align: center; color: var(--text-dim); margin-top: 16px; font-size: 0.95rem;">
+          这两个方法写了，但从来没有被调用过 → <strong>幽灵代码</strong>
+        </p>
+      </div>
+
+      <div class="callout danger">
+        <span class="icon">🚨</span>
+        <strong>问题本质：</strong>脚本定义了 <code>check_freeze()</code> 和 <code>handle_freeze()</code>，但 <code>run_single_cycle()</code> 里<strong>从来没有调用过它们</strong>。这意味着：即使 App 卡死了，脚本也<strong>不会检测、不会处理</strong>，只会傻傻地等 200 秒。
+      </div>
+
+      <div class="callout warning">
+        <span class="icon">⚠️</span>
+        <strong>check_freeze() 本身也有问题：</strong><br>
+        <code>elem.wait(timeout=200)</code> — 等 <strong>200 毫秒</strong>（0.2 秒）<br>
+        0.2 秒太短了！页面稍微渲染慢一点就算"卡死"。正常应该等 <strong>2-5 秒</strong>。
+      </div>
+
+      <div class="callout success">
+        <span class="icon">✅</span>
+        <strong>面试怎么说：</strong>"我写了卡死检测和处理方法，但后来发现 run_single_cycle() 里没有调用它们。这是一个遗漏，应该在每次切换运营商前后调用 check_freeze()，检测到卡死后调用 handle_freeze() 重启 App。"
+      </div>
+    </div>
+  </div>
+
+  <!-- Bug #3 -->
+  <div class="chapter">
+    <div class="chapter-header">
+      <span class="chapter-num">🐛</span>
+      <h2 class="chapter-title">Bug #3：continue 跳过了后面的运营商</h2>
+    </div>
+
+    <div class="card">
+      <span class="card-label bug">🚨 逻辑 Bug</span>
+
+      <div class="code-block">
+<span class="cm"># 脚本第 378-385 行</span>
+<span class="kw">if</span> success:
+    self.success_count += <span class="num">1</span>
+<span class="kw">else</span>:
+    self.fail_count += <span class="num">1</span>
+    <span class="kw">if</span> self.test_params[<span class="str">'operator_switch_timeout'</span>] >= <span class="num">100</span>:
+        self.logger.warning(<span class="str">f"切换失败: {remark}"</span>)
+<span class="hl-red">    <span class="kw">continue</span>  <span class="cm"># ← 这里！失败后跳到下一轮循环</span></span>
+      </div>
+
+      <div class="scene">
+        <div class="flow-chart">
+          <div class="flow-node start">
+            <div class="node-title">🔁 第 N 轮开始</div>
+          </div>
+          <div class="flow-arrow">⬇️</div>
+          <div class="flow-node">
+            <div class="node-title">📡 切换 → 中国联通</div>
+            <div class="node-desc">假设失败了</div>
+          </div>
+          <div class="flow-arrow">⬇️</div>
+          <div class="flow-node bug-node">
+            <div class="node-title">🐛 continue 跳过了！</div>
+            <div class="node-desc">中国电信、中国移动都没测！</div>
+          </div>
+          <div class="flow-arrow">⬇️</div>
+          <div class="flow-node end">
+            <div class="node-title">🔁 直接进入第 N+1 轮</div>
+            <div class="node-desc">电信和移动被跳过了</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout danger">
+        <span class="icon">🚨</span>
+        <strong>后果：</strong>如果"中国联通"切换失败了，<code>continue</code> 会直接跳到下一轮循环，<strong>"中国电信"和"中国移动"都不会被测试</strong>。这意味着每轮循环不一定测 3 个运营商，可能只测了 1 个就跳过了。
+      </div>
+
+      <div class="callout warning">
+        <span class="icon">⚠️</span>
+        <strong>修复建议：</strong>去掉 <code>continue</code>，让每个运营商都测完，不管成功失败都继续下一个。或者把 <code>continue</code> 改成 <code>pass</code>。
+      </div>
+    </div>
+  </div>
+
+  <!-- 第六章：navigate_to_operator_page -->
+  <div class="chapter">
+    <div class="chapter-header">
+      <span class="chapter-num">06</span>
+      <h2 class="chapter-title">navigate_to_operator_page — 导航流程</h2>
+    </div>
+
+    <div class="card">
+      <span class="card-label flow">🧭 脚本第 240-300 行</span>
+      <p>这个方法负责从首页导航到运营商切换页面，经历了 <strong>5 个步骤</strong>：</p>
+
+      <div class="scene">
+        <div class="timeline">
+          <div class="tl-item">
+            <strong>Step 1</strong>：点击【手动飞行】按钮<br>
+            <code>self.device(resourceId=manual_flight_id).click()</code>
+          </div>
+          <div class="tl-item">
+            <strong>等待 4 秒</strong><br>
+            <code>time.sleep(4)</code>
+          </div>
+          <div class="tl-item">
+            <strong>Step 2</strong>：点击右侧空白区域（按坐标）<br>
+            <code>self.device.click(x_ratio, y_ratio)</code>
+          </div>
+          <div class="tl-item">
+            <strong>等待 4 秒</strong><br>
+            <code>time.sleep(4)</code>
+          </div>
+          <div class="tl-item">
+            <strong>Step 3</strong>：点击【三】菜单按钮<br>
+            <code>self.device(resourceId=menu_button_id).click()</code>
+          </div>
+          <div class="tl-item">
+            <strong>等待 4 秒</strong><br>
+            <code>time.sleep(4)</code>
+          </div>
+          <div class="tl-item">
+            <strong>Step 4</strong>：选择【4G】选项 + 向上滚动<br>
+            <code>self.device.swipe(0.5, 0.8, 0.5, 0.2)</code>
+          </div>
+          <div class="tl-item">
+            <strong>等待 4 秒</strong><br>
+            <code>time.sleep(4)</code>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout warning">
+        <span class="icon">⚠️</span>
+        <strong>问题：</strong>总共 <code>4 × 4 = 16 秒</code> 的 <code>time.sleep()</code>！每次导航都要等 16 秒，太慢了。可以用 <code>wait(timeout=5)</code> 替代部分 sleep，元素出现了就继续，不用死等。
+      </div>
+    </div>
+  </div>
+
+  <!-- 第七章：完整流程 Bug 汇总 -->
+  <div class="chapter">
+    <div class="chapter-header">
+      <span class="chapter-num">07</span>
+      <h2 class="chapter-title">Bug 汇总 — 面试可以直接说的</h2>
+    </div>
+
+    <div class="card">
+      <span class="card-label bug">🐛 3 个 Bug 一览</span>
+
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Bug</th>
+            <th>位置</th>
+            <th>现象</th>
+            <th>严重程度</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>#1 注释掉等待</strong></td>
+            <td>switch_operator()</td>
+            <td>没等加载完就检查，误判失败</td>
+            <td class="no">🔴 高</td>
+          </tr>
+          <tr>
+            <td><strong>#2 卡死检测未调用</strong></td>
+            <td>run_single_cycle()</td>
+            <td>App 卡死了也不会处理</td>
+            <td class="no">🔴 高</td>
+          </tr>
+          <tr>
+            <td><strong>#3 continue 跳过运营商</strong></td>
+            <td>run_single_cycle()</td>
+            <td>一个失败，后面两个不测</td>
+            <td class="no">🟡 中</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout success">
+        <span class="icon">✅</span>
+        <strong>面试标准回答模板：</strong><br><br>
+        "我 review 了自己的脚本，发现了 3 个问题：<br><br>
+        <strong>第一</strong>，switch_operator() 里等待加载弹窗的代码被注释掉了，导致点击后没等 App 加载完就去检查，容易误判。<br><br>
+        <strong>第二</strong>，check_freeze() 和 handle_freeze() 写了但没被调用，App 卡死了也不会自动重启。<br><br>
+        <strong>第三</strong>，run_single_cycle() 里一个运营商失败后 continue 跳过了后面的运营商，导致每轮不一定测完 3 个。"
+      </div>
+    </div>
+  </div>
+
+  <!-- 第八章：知识汇总 -->
+  <div class="chapter">
+    <div class="chapter-header">
+      <span class="chapter-num">08</span>
+      <h2 class="chapter-title">知识汇总 — Q7-Q14 答案</h2>
+    </div>
+
+    <div class="card">
+      <span class="card-label tip">📝 面试问答</span>
+
+      <div style="margin: 16px 0;">
+        <h3 style="color: var(--cyan); margin-bottom: 8px;">Q7：check_freeze() 是怎么判断卡死的？有什么缺陷？</h3>
+        <div class="bubble cyan">
+          <div class="speaker">答案</div>
+          它检查 network_level 元素在 200 毫秒内是否出现。200ms 太短了，页面稍微渲染慢一点就算卡死。应该改成 2-5 秒。而且这个方法根本没被调用过。
+        </div>
+      </div>
+
+      <div style="margin: 16px 0;">
+        <h3 style="color: var(--pink); margin-bottom: 8px;">Q8：run_single_cycle() 检测到卡死会怎么处理？</h3>
+        <div class="bubble pink">
+          <div class="speaker">答案</div>
+          实际上它根本没有检测卡死！check_freeze() 和 handle_freeze() 写了但没被调用。这是脚本最大的 bug。
+        </div>
+      </div>
+
+      <div style="margin: 16px 0;">
+        <h3 style="color: var(--green); margin-bottom: 8px;">Q12：switch_operator() 里为什么注释掉等待逻辑？</h3>
+        <div class="bubble green">
+          <div class="speaker">答案</div>
+          注释掉后，点击运营商按钮就立刻去检查结果，没等加载完成，导致误判失败。应该取消注释或加 sleep 等待。
+        </div>
+      </div>
+
+      <div style="margin: 16px 0;">
+        <h3 style="color: var(--orange); margin-bottom: 8px;">Q14：continue 后后面的运营商还测不测？</h3>
+        <div class="bubble yellow">
+          <div class="speaker">答案</div>
+          不测了。continue 会跳到 for 循环的下一次迭代，也就是下一轮循环。当前轮剩下的运营商都被跳过了。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部 -->
+  <div class="footer">
+    <p>🔍 Day3 完成 — 你已能读懂自己的脚本流程 + 找出 3 个 Bug</p>
+    <div class="next-day">🎯 明天学：单例模式 + 模块化设计（Day4）</div>
+  </div>
+
+</div>
+</body>
+</html>

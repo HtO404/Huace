@@ -1,0 +1,63 @@
+# ============================================
+# D:\Hcode 项目级 .gitignore
+# 在原有基础上追加：日志/CSV/截图/IDE/大文件
+# ============================================
+
+# ---- Python 缓存与构建产物 ----
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+*.spec
+
+# ---- 日志 / CSV / 截图（测试输出，不入库） ----
+*.log
+*.csv
+output/
+project_csv/
+project_log/
+*_csv/
+*_log/
+image/
+image/thumb/
+screenshots/
+logs/
+operator_screenshots/
+operator_screenshots*/
+
+# ---- 临时标记文件 ----
+.last_test.json
+*.tmp
+*.bak
+*.swp
+
+# ---- IDE 与编辑器 ----
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 测试数据 / 大文件 ----
+500mb_test_file.dat
+*.dat
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# ---- 配置文件中的敏感信息（按需启用） ----
+# config.ini
+# .env
+# *.secret
+
+# ---- 生成的报告 / 文档中间产物 ----
+__report__/
+node_modules/

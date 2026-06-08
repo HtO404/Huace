@@ -1,0 +1,3 @@
+# FTP上传稳定性测试 - 依赖库
+# 本项目仅使用Python内置库，无需额外安装第三方依赖
+# 内置库: ftplib, time, os, sys, datetime, csv, configparser, hashlib, statistics, typing

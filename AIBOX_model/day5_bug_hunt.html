@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day5 — 通读代码找 Bug</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=ZCOOL+KuaiLe&family=Ma+Shan+Zheng&display=swap');
+
+  :root {
+    --bg: #0a0a16;
+    --card: #141428;
+    --card-h: #1a1a35;
+    --border: #262645;
+    --border-g: #383868;
+    --cyan: #00e5ff;
+    --pink: #ff4081;
+    --green: #69f0ae;
+    --yellow: #ffd600;
+    --orange: #ff9100;
+    --red: #ff1744;
+    --purple: #b388ff;
+    --blue: #448aff;
+    --teal: #1de9b6;
+    --text: #d0d0e8;
+    --text-d: #707098;
+    --text-b: #ffffff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 400;
+    line-height: 1.85;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(1.5px 1.5px at 12% 22%, rgba(0,229,255,0.5), transparent),
+      radial-gradient(1px 1px at 42% 12%, rgba(179,136,255,0.4), transparent),
+      radial-gradient(1.5px 1.5px at 72% 32%, rgba(255,64,129,0.4), transparent),
+      radial-gradient(1px 1px at 22% 62%, rgba(105,240,174,0.4), transparent),
+      radial-gradient(1.5px 1.5px at 82% 72%, rgba(255,214,0,0.4), transparent),
+      radial-gradient(1px 1px at 52% 82%, rgba(0,229,255,0.3), transparent),
+      radial-gradient(1px 1px at 32% 42%, rgba(179,136,255,0.3), transparent),
+      radial-gradient(1.5px 1.5px at 62% 52%, rgba(255,64,129,0.3), transparent),
+      radial-gradient(1px 1px at 92% 12%, rgba(29,233,182,0.3), transparent),
+      radial-gradient(1.5px 1.5px at 8% 82%, rgba(68,138,255,0.3), transparent);
+    pointer-events: none;
+    z-index: 0;
+    animation: twinkle 5s ease-in-out infinite alternate;
+  }
+
+  @keyframes twinkle {
+    0% { opacity: 0.5; }
+    100% { opacity: 1; }
+  }
+
+  .wrap {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero {
+    text-align: center;
+    padding: 80px 20px 60px;
+  }
+
+  .hero h1 {
+    font-family: 'ZCOOL KuaiLe', cursive;
+    font-size: clamp(2.2rem, 7vw, 3.8rem);
+    background: linear-gradient(135deg, var(--teal), var(--cyan), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: glow 4s ease-in-out infinite;
+  }
+
+  @keyframes glow {
+    0%,100% { filter: brightness(1) drop-shadow(0 0 8px rgba(0,229,255,0.3)); }
+    50% { filter: brightness(1.2) drop-shadow(0 0 20px rgba(179,136,255,0.5)); }
+  }
+
+  .hero .sub {
+    color: var(--text-d);
+    font-size: 1.1rem;
+    margin-top: 10px;
+    font-weight: 300;
+  }
+
+  .hero .badge {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--teal), var(--cyan));
+    color: var(--bg);
+    font-weight: 700;
+    font-size: 0.8rem;
+    padding: 4px 16px;
+    border-radius: 20px;
+    margin-top: 18px;
+  }
+
+  .ch {
+    margin: 55px 0;
+    opacity: 0;
+    transform: translateY(35px);
+    animation: up 0.7s ease-out forwards;
+  }
+
+  .ch:nth-child(2) { animation-delay: .1s; }
+  .ch:nth-child(3) { animation-delay: .2s; }
+  .ch:nth-child(4) { animation-delay: .3s; }
+  .ch:nth-child(5) { animation-delay: .4s; }
+  .ch:nth-child(6) { animation-delay: .5s; }
+  .ch:nth-child(7) { animation-delay: .6s; }
+  .ch:nth-child(8) { animation-delay: .7s; }
+  .ch:nth-child(9) { animation-delay: .8s; }
+  .ch:nth-child(10) { animation-delay: .9s; }
+
+  @keyframes up {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .ch-h {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+
+  .ch-n {
+    font-family: 'ZCOOL KuaiLe', cursive;
+    font-size: 2.4rem;
+    color: var(--cyan);
+    text-shadow: 0 0 18px rgba(0,229,255,0.35);
+    line-height: 1;
+  }
+
+  .ch-t {
+    font-family: 'ZCOOL KuaiLe', cursive;
+    font-size: 1.5rem;
+    color: var(--text-b);
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 26px;
+    margin: 18px 0;
+    position: relative;
+    overflow: hidden;
+    transition: all .3s;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+  }
+
+  .card:hover {
+    border-color: var(--border-g);
+    background: var(--card-h);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 28px rgba(0,0,0,0.45), 0 0 25px rgba(0,229,255,0.1);
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--teal), var(--cyan), var(--purple), var(--pink));
+  }
+
+  .card.bug-card::before {
+    background: linear-gradient(90deg, var(--red), var(--orange), var(--yellow));
+  }
+
+  .card.fix-card::before {
+    background: linear-gradient(90deg, var(--green), var(--teal));
+  }
+
+  .lb {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 700;
+    font-size: 0.78rem;
+    padding: 3px 11px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    letter-spacing: .5px;
+  }
+
+  .lb.flow { background: rgba(0,229,255,0.12); color: var(--cyan); }
+  .lb.bug { background: rgba(255,23,68,0.12); color: var(--red); }
+  .lb.tip { background: rgba(105,240,174,0.12); color: var(--green); }
+  .lb.warn { background: rgba(255,145,0,0.12); color: var(--orange); }
+  .lb.code { background: rgba(179,136,255,0.12); color: var(--purple); }
+  .lb.concept { background: rgba(29,233,182,0.12); color: var(--teal); }
+  .lb.qa { background: rgba(68,138,255,0.12); color: var(--blue); }
+
+  .code {
+    background: #080812;
+    border: 1px solid #222240;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 14px 0;
+    font-family: 'Consolas','Courier New',monospace;
+    font-size: 0.86rem;
+    line-height: 1.65;
+    overflow-x: auto;
+  }
+
+  .code .kw { color: #569cd6; }
+  .code .fn { color: #dcdcaa; }
+  .code .str { color: #ce9178; }
+  .code .num { color: #b5cea8; }
+  .code .cm { color: #6a9955; font-style: italic; }
+  .code .dec { color: #c586c0; }
+  .code .var { color: #9cdcfe; }
+  .code .cls { color: #4ec9b0; }
+  .code .op { color: #d4d4d4; }
+
+  .code .hp { background: rgba(255,64,129,0.1); margin: 0 -20px; padding: 2px 20px; border-left: 3px solid var(--pink); display: block; }
+  .code .hc { background: rgba(0,229,255,0.07); margin: 0 -20px; padding: 2px 20px; border-left: 3px solid var(--cyan); display: block; }
+  .code .hr { background: rgba(255,23,68,0.1); margin: 0 -20px; padding: 2px 20px; border-left: 3px solid var(--red); display: block; }
+  .code .hg { background: rgba(105,240,174,0.07); margin: 0 -20px; padding: 2px 20px; border-left: 3px solid var(--green); display: block; }
+  .code .hy { background: rgba(255,214,0,0.07); margin: 0 -20px; padding: 2px 20px; border-left: 3px solid var(--yellow); display: block; }
+  .code .ht { background: rgba(29,233,182,0.07); margin: 0 -20px; padding: 2px 20px; border-left: 3px solid var(--teal); display: block; }
+  .code .ho { background: rgba(255,145,0,0.07); margin: 0 -20px; padding: 2px 20px; border-left: 3px solid var(--orange); display: block; }
+
+  .bub {
+    position: relative;
+    padding: 13px 18px;
+    border-radius: 14px;
+    margin: 14px 0;
+    max-width: 85%;
+    font-size: 0.93rem;
+  }
+
+  .bub .spk {
+    font-weight: 700;
+    font-size: 0.78rem;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .bub.c { background: rgba(0,229,255,0.07); border: 1.5px solid var(--cyan); }
+  .bub.c .spk { color: var(--cyan); }
+  .bub.p { background: rgba(255,64,129,0.07); border: 1.5px solid var(--pink); }
+  .bub.p .spk { color: var(--pink); }
+  .bub.g { background: rgba(105,240,174,0.07); border: 1.5px solid var(--green); }
+  .bub.g .spk { color: var(--green); }
+  .bub.r { background: rgba(255,23,68,0.07); border: 1.5px solid var(--red); }
+  .bub.r .spk { color: var(--red); }
+  .bub.y { background: rgba(255,214,0,0.07); border: 1.5px solid var(--yellow); }
+  .bub.y .spk { color: var(--yellow); }
+  .bub.t { background: rgba(29,233,182,0.07); border: 1.5px solid var(--teal); }
+  .bub.t .spk { color: var(--teal); }
+  .bub.b { background: rgba(68,138,255,0.07); border: 1.5px solid var(--blue); }
+  .bub.b .spk { color: var(--blue); }
+
+  .co {
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 18px 0;
+    border-left: 4px solid;
+  }
+
+  .co.info { background: rgba(0,229,255,0.05); border-color: var(--cyan); }
+  .co.danger { background: rgba(255,23,68,0.05); border-color: var(--red); }
+  .co.warning { background: rgba(255,145,0,0.05); border-color: var(--orange); }
+  .co.success { background: rgba(105,240,174,0.05); border-color: var(--green); }
+  .co.teal { background: rgba(29,233,182,0.05); border-color: var(--teal); }
+  .co.purple { background: rgba(179,136,255,0.05); border-color: var(--purple); }
+
+  .co .ico { font-size: 1.2rem; margin-right: 6px; }
+  .co strong { color: var(--text-b); }
+
+  .scene {
+    background: #0b0b1a;
+    border-radius: 10px;
+    padding: 22px;
+    margin: 14px 0;
+    border: 1px dashed var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .scene::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,229,255,0.008) 2px, rgba(0,229,255,0.008) 4px);
+    pointer-events: none;
+  }
+
+  .actor {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 8px 14px;
+  }
+
+  .actor .f {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin-bottom: 5px;
+  }
+
+  .actor .l {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-align: center;
+    color: var(--text-d);
+  }
+
+  .actor.a1 .f { background: linear-gradient(135deg, var(--cyan), #0091ea); box-shadow: 0 0 16px rgba(0,229,255,0.35); animation: p1 3s ease-in-out infinite; }
+  .actor.a2 .f { background: linear-gradient(135deg, var(--purple), #7c4dff); box-shadow: 0 0 16px rgba(179,136,255,0.35); animation: p2 3s ease-in-out infinite .5s; }
+  .actor.a3 .f { background: linear-gradient(135deg, var(--pink), #c51162); box-shadow: 0 0 16px rgba(255,64,129,0.35); animation: p3 3s ease-in-out infinite 1s; }
+  .actor.a4 .f { background: linear-gradient(135deg, var(--green), #00c853); box-shadow: 0 0 16px rgba(105,240,174,0.35); }
+  .actor.a5 .f { background: linear-gradient(135deg, var(--teal), #00bfa5); box-shadow: 0 0 16px rgba(29,233,182,0.35); animation: float 2.5s ease-in-out infinite; }
+  .actor.a6 .f { background: linear-gradient(135deg, var(--red), #d50000); box-shadow: 0 0 16px rgba(255,23,68,0.35); animation: shake 2s ease-in-out infinite; }
+
+  @keyframes p1 { 0%,100% { box-shadow: 0 0 16px rgba(0,229,255,0.3); } 50% { box-shadow: 0 0 28px rgba(0,229,255,0.6); } }
+  @keyframes p2 { 0%,100% { box-shadow: 0 0 16px rgba(179,136,255,0.3); } 50% { box-shadow: 0 0 28px rgba(179,136,255,0.6); } }
+  @keyframes p3 { 0%,100% { box-shadow: 0 0 16px rgba(255,64,129,0.3); } 50% { box-shadow: 0 0 28px rgba(255,64,129,0.6); } }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+  @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+
+  .tl {
+    position: relative;
+    padding-left: 30px;
+    margin: 14px 0;
+  }
+
+  .tl::before {
+    content: '';
+    position: absolute;
+    left: 9px;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--teal), var(--cyan), var(--purple));
+  }
+
+  .ti {
+    position: relative;
+    margin: 10px 0;
+    padding: 9px 14px;
+    background: rgba(20,20,40,0.5);
+    border-radius: 7px;
+    border-left: 3px solid var(--cyan);
+    transition: all .3s;
+  }
+
+  .ti:hover { background: rgba(20,20,40,0.85); transform: translateX(3px); }
+
+  .ti::before {
+    content: '';
+    position: absolute;
+    left: -25px;
+    top: 15px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--cyan);
+    box-shadow: 0 0 7px rgba(0,229,255,0.5);
+  }
+
+  .ti.d { border-left-color: var(--red); }
+  .ti.d::before { background: var(--red); box-shadow: 0 0 7px rgba(255,23,68,0.5); }
+  .ti.s { border-left-color: var(--green); }
+  .ti.s::before { background: var(--green); box-shadow: 0 0 7px rgba(105,240,174,0.5); }
+  .ti.w { border-left-color: var(--orange); }
+  .ti.w::before { background: var(--orange); box-shadow: 0 0 7px rgba(255,145,0,0.5); }
+  .ti.y { border-left-color: var(--yellow); }
+  .ti.y::before { background: var(--yellow); box-shadow: 0 0 7px rgba(255,214,0,0.5); }
+
+  .tbl {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 14px 0;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .tbl th {
+    background: #14142e;
+    color: var(--cyan);
+    font-weight: 700;
+    padding: 11px 14px;
+    text-align: left;
+    font-size: 0.88rem;
+  }
+
+  .tbl td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.88rem;
+  }
+
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tr:nth-child(even) td { background: rgba(255,255,255,0.012); }
+  .tbl .ok { color: var(--green); }
+  .tbl .no { color: var(--red); }
+
+  .fc {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 18px 0;
+  }
+
+  .fn {
+    background: linear-gradient(135deg, #141430, #1e1e45);
+    border: 2px solid var(--cyan);
+    border-radius: 11px;
+    padding: 12px 22px;
+    text-align: center;
+    min-width: 200px;
+    transition: all .3s;
+    animation: na .5s ease-out both;
+  }
+
+  .fn:hover { border-color: var(--purple); box-shadow: 0 0 18px rgba(179,136,255,0.25); transform: scale(1.02); }
+  .fn.start { border-color: var(--green); background: linear-gradient(135deg, #0a2518, #153525); }
+  .fn.end { border-color: var(--yellow); background: linear-gradient(135deg, #25250a, #353515); }
+  .fn.bug-node { border-color: var(--red); background: linear-gradient(135deg, #250a0a, #351515); }
+
+  @keyframes na { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+
+  .fn .nt { font-weight: 700; font-size: 0.95rem; color: var(--text-b); }
+  .fn .nd { font-size: 0.82rem; color: var(--text-d); margin-top: 3px; }
+
+  .fa {
+    font-size: 1.6rem;
+    color: var(--cyan);
+    margin: 3px 0;
+    animation: ab 1.5s ease-in-out infinite;
+  }
+
+  @keyframes ab { 0%,100% { transform: translateY(0); opacity: .5; } 50% { transform: translateY(5px); opacity: 1; } }
+
+  .dv {
+    text-align: center;
+    margin: 35px 0;
+    font-size: 1.2rem;
+    color: var(--text-d);
+    letter-spacing: 4px;
+  }
+
+  .foot {
+    text-align: center;
+    padding: 45px 20px 35px;
+    color: var(--text-d);
+    border-top: 1px solid var(--border);
+    margin-top: 55px;
+  }
+
+  .foot .next {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--teal), var(--cyan));
+    color: var(--bg);
+    font-weight: 700;
+    padding: 9px 26px;
+    border-radius: 28px;
+    font-size: 0.95rem;
+    margin-top: 14px;
+    transition: all .3s;
+  }
+
+  .foot .next:hover { transform: scale(1.05); box-shadow: 0 0 18px rgba(0,229,255,0.4); }
+
+  .analogy {
+    background: linear-gradient(135deg, rgba(29,233,182,0.06), rgba(0,229,255,0.06));
+    border: 1.5px solid var(--teal);
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin: 16px 0;
+  }
+
+  .analogy .title {
+    font-weight: 700;
+    color: var(--teal);
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+  }
+
+  .bug-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,23,68,0.12);
+    border: 1.5px solid var(--red);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-weight: 700;
+    color: var(--red);
+    font-size: 0.9rem;
+    margin: 8px 0;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(255,23,68,0.3); }
+    50% { box-shadow: 0 0 0 8px rgba(255,23,68,0); }
+  }
+
+  .severity {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 8px;
+  }
+
+  .severity.high { background: rgba(255,23,68,0.2); color: var(--red); }
+  .severity.medium { background: rgba(255,145,0,0.2); color: var(--orange); }
+  .severity.low { background: rgba(255,214,0,0.2); color: var(--yellow); }
+
+  @media (max-width: 640px) {
+    .card { padding: 16px; }
+    .code { font-size: 0.78rem; padding: 12px 14px; }
+    .actor .f { width: 42px; height: 42px; font-size: 1.2rem; }
+    .bub { max-width: 95%; }
+    .fn { min-width: 170px; padding: 10px 14px; }
+    .ch-n { font-size: 1.8rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <h1>🔍 Day5：通读代码找 Bug</h1>
+    <p class="sub">像侦探一样，逐行追踪你的脚本，找出隐藏的 bug</p>
+    <span class="badge">📖 基于 运营商切换 copy.py 全文</span>
+  </div>
+
+  <!-- 01: 为什么要通读代码 -->
+  <div class="ch">
+    <div class="ch-h">
+      <span class="ch-n">01</span>
+      <h2 class="ch-t">为什么要通读自己的代码？</h2>
+    </div>
+
+    <div class="card">
+      <span class="lb concept">💡 核心概念</span>
+      <p>写代码时我们关注<strong>功能实现</strong>，但写完后再读一遍，关注的是<strong>逻辑正确性</strong>。这是两种完全不同的思维方式。</p>
+
+      <div class="analogy">
+        <div class="title">🎯 生活类比</div>
+        <p><strong>写代码</strong>像写作文——你想表达什么，就写什么。<br>
+        <strong>读代码</strong>像改作文——站在读者的角度，看有没有错别字、逻辑漏洞、表达不清的地方。</p>
+      </div>
+
+      <div class="scene">
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 280px;">
+            <h3 style="color: var(--cyan); margin-bottom: 10px;">✍️ 写代码时</h3>
+            <div class="tl">
+              <div class="ti">我想实现 A → B → C 的流程</div>
+              <div class="ti">我用了 uiautomator2 点击按钮</div>
+              <div class="ti">我加了日志记录每一步</div>
+            </div>
+          </div>
+
+          <div style="flex: 1; min-width: 280px;">
+            <h3 style="color: var(--pink); margin-bottom: 10px;">🔍 读代码时</h3>
+            <div class="tl">
+              <div class="ti d">A 到 B 之间有没有等待？</div>
+              <div class="ti d">如果点击失败会怎样？</div>
+              <div class="ti d">日志会不会漏掉关键信息？</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="co info">
+        <span class="ico">💡</span>
+        <strong>面试怎么说：</strong>"我写完代码后，会从头到尾通读一遍，模拟执行流程，检查边界条件和异常处理。这能发现很多写的时候没注意到的 bug。"
+      </div>
+    </div>
+  </div>
+
+  <div class="dv">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 02: 通读方法 -->
+  <div class="ch">
+    <div class="ch-h">
+      <span class="ch-n">02</span>
+      <h2 class="ch-t">怎么通读？—— 模拟执行法</h2>
+    </div>
+
+    <div class="card">
+      <span class="lb flow">🔄 通读步骤</span>
+
+      <div class="scene">
+        <div class="tl">
+          <div class="ti">
+            <strong>Step 1: 从 main() 开始</strong><br>
+            找到程序入口，看第一步做了什么
+          </div>
+          <div class="ti">
+            <strong>Step 2: 跟着函数调用走</strong><br>
+            main() → test.run() → run_single_cycle() → switch_operator()
+          </div>
+          <div class="ti">
+            <strong>Step 3: 问自己 3 个问题</strong><br>
+            ① 这行代码一定能执行到吗？<br>
+            ② 如果出错了会怎样？<br>
+            ③ 这里的数据对不对？
+          </div>
+          <div class="ti">
+            <strong>Step 4: 标记可疑代码</strong><br>
+            用注释、TODO、或者高亮标记出来，后面集中处理
+          </div>
+        </div>
+      </div>
+
+      <div class="co teal">
+        <span class="ico">🎯</span>
+        <strong>核心技巧：</strong>把自己当成计算机，<strong>逐行执行</strong>代码，记录每个变量的值。这样能发现很多隐藏的逻辑错误。
+      </div>
+    </div>
+  </div>
+
+  <div class="dv">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 03: Bug #1 注释掉等待逻辑 -->
+  <div class="ch">
+    <div class="ch-h">
+      <span class="ch-n">03</span>
+      <h2 class="ch-t">Bug #1 — 注释掉等待加载逻辑</h2>
+    </div>
+
+    <div class="card bug-card">
+      <div class="bug-badge">🐛 Bug #1 <span class="severity high">严重</span></div>
+      <p><strong>位置：</strong>switch_operator() 方法，第 195-200 行</p>
+
+      <div class="code">
+<span class="kw">def</span> <span class="fn">switch_operator</span>(self, operator, cycle_num):
+    ...
+    <span class="cm"># 点击了运营商按钮</span>
+    operator_elem.click()
+
+<span class="hr">    <span class="cm"># timeout_val = self.test_params['operator_switch_timeout']</span></span>
+<span class="hr">    <span class="cm"># success, elapsed = self.wait_loading_dialog(timeout=timeout_val)</span></span>
+<span class="hr">    <span class="cm"># if not success:</span></span>
+<span class="hr">    <span class="cm">#     return False, elapsed, "等待加载弹窗超时"</span></span>
+
+    <span class="cm"># 直接检查切换结果</span>
+    <span class="kw">if</span> self.check_operator_switch():
+        <span class="kw">return</span> <span class="kw">True</span>, elapsed, <span class="str">"切换成功"</span>
+      </div>
+
+      <div class="co danger">
+        <span class="ico">❌</span>
+        <strong>问题：</strong>点击运营商按钮后，App 会弹出一个加载对话框（loading dialog）。但这段等待对话框消失的代码被注释掉了！<br><br>
+        <strong>后果：</strong>点击后立刻检查网络等级元素，此时对话框还没消失，网络等级元素可能被遮挡，导致 <code>check_operator_switch()</code> 返回 False，<strong>误判为切换失败</strong>。
+      </div>
+
+      <div class="scene">
+        <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
+          <div class="actor a1">
+            <div class="f">👆</div>
+            <div class="l">点击按钮</div>
+          </div>
+          <div style="font-size: 1.5rem; align-self: center; color: var(--text-d);">→</div>
+          <div class="actor a6">
+            <div class="f">⏳</div>
+            <div class="l">加载对话框</div>
+          </div>
+          <div style="font-size: 1.5rem; align-self: center; color: var(--red);">⚠️ 没等！</div>
+          <div class="actor a3">
+            <div class="f">🔍</div>
+            <div class="l">检查结果</div>
+          </div>
+        </div>
+        <p style="text-align: center; color: var(--red); margin-top: 14px; font-size: 0.9rem; font-weight: 700;">
+          ⚠️ 对话框还在转圈，你就去检查结果了 → 误判失败！
+        </p>
+      </div>
+    </div>
+
+    <div class="card fix-card">
+      <span class="lb tip">✅ 修复方案</span>
+
+      <div class="code">
+<span class="hg">    timeout_val = self.test_params['operator_switch_timeout']</span>
+<span class="hg">    success, elapsed = self.wait_loading_dialog(timeout=timeout_val)</span>
+<span class="hg">    if not success:</span>
+<span class="hg">        elapsed = (time.time() - start_time) * 1000</span>
+<span class="hg">        self.logger.warning(f"[SWITCH {operator_name}] 等待加载弹窗超时，耗时: {elapsed:.2f}ms")</span>
+<span class="hg">        return False, elapsed, f"等待加载弹窗超时({timeout_val}s)"</span>
+      </div>
+
+      <div class="co success">
+        <span class="ico">✅</span>
+        <strong>修复后：</strong>点击按钮 → 等待加载对话框消失 → 再检查结果。这样就不会误判了。
+      </div>
+    </div>
+  </div>
+
+  <div class="dv">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 04: Bug #2 卡死检测未调用 -->
+  <div class="ch">
+    <div class="ch-h">
+      <span class="ch-n">04</span>
+      <h2 class="ch-t">Bug #2 — 卡死检测写了但没被调用</h2>
+    </div>
+
+    <div class="card bug-card">
+      <div class="bug-badge">🐛 Bug #2 <span class="severity medium">中等</span></div>
+      <p><strong>位置：</strong>check_freeze() 方法，第 227 行</p>
+
+      <div class="code">
+<span class="kw">def</span> <span class="fn">check_freeze</span>(self) -> <span class="kw">bool</span>:
+    <span class="cm">"""检测是否卡死 - 只检查network_level是否在200ms内出现"""</span>
+    network_level_id = self.ui_elements['network_level']
+    elem = self.device(resourceId=network_level_id)
+<span class="hr">    <span class="cm"># 200ms内出现说明没卡死，没出现说明可能卡死</span></span>
+<span class="hr">    <span class="kw">return</span> <span class="kw">not</span> elem.wait(timeout=<span class="num">200</span>)</span>
+      </div>
+
+      <div class="co danger">
+        <span class="ico">❌</span>
+        <strong>问题 1：</strong>这个方法定义了，但在 <code>run_single_cycle()</code> 里<strong>从来没有被调用过</strong>。写了等于没写。<br><br>
+        <strong>问题 2：</strong>超时时间只有 200ms（0.2 秒），太短了！UI 元素正常加载可能需要 1-2 秒。0.2 秒没出现就判定为卡死，<strong>误判率极高</strong>。
+      </div>
+
+      <div class="scene">
+        <div class="bub r">
+          <div class="spk">🐛 Bug 的自白</div>
+          "我住在第 227 行，已经很久了。从来没有人叫过我。我每天都在等，但 run_single_cycle() 从来不来看我。我好孤独..."
+        </div>
+      </div>
+
+      <div class="co warning">
+        <span class="ico">⚠️</span>
+        <strong>幽灵代码：</strong>定义了但从未调用的代码叫"幽灵代码"。它不会报错，但也不会干活。面试时可以说"我定期清理幽灵代码，保持代码库整洁"。
+      </div>
+    </div>
+
+    <div class="card fix-card">
+      <span class="lb tip">✅ 修复方案</span>
+
+      <div class="code">
+<span class="hg">    <span class="cm"># 修复 1: 在 run_single_cycle 中调用</span></span>
+<span class="hg">    <span class="kw">if</span> self.check_freeze():</span>
+<span class="hg">        self.logger.warning(f"[CYCLE {cycle_num}] 检测到卡死，执行重启...")</span>
+<span class="hg">        self.handle_freeze()</span>
+
+<span class="hg">    <span class="cm"># 修复 2: 超时时间改为 2 秒</span></span>
+<span class="hg">    <span class="kw">return</span> <span class="kw">not</span> elem.wait(timeout=<span class="num">2000</span>)  <span class="cm"># 200ms → 2000ms</span></span>
+      </div>
+
+      <div class="co success">
+        <span class="ico">✅</span>
+        <strong>修复后：</strong>每次切换运营商前检查是否卡死，卡死了就重启 App。超时时间改为 2 秒，降低误判率。
+      </div>
+    </div>
+  </div>
+
+  <div class="dv">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 05: Bug #3 continue 跳过后续运营商 -->
+  <div class="ch">
+    <div class="ch-h">
+      <span class="ch-n">05</span>
+      <h2 class="ch-t">Bug #3 — continue 跳过了后面的运营商</h2>
+    </div>
+
+    <div class="card bug-card">
+      <div class="bug-badge">🐛 Bug #3 <span class="severity high">严重</span></div>
+      <p><strong>位置：</strong>run_single_cycle() 方法，第 420 行</p>
+
+      <div class="code">
+<span class="kw">def</span> <span class="fn">run_single_cycle</span>(self, cycle_num):
+    <span class="kw">for</span> idx, operator <span class="kw">in</span> <span class="fn">enumerate</span>(self.OPERATORS):
+        <span class="cm"># 切换运营商</span>
+        success, duration, remark = self.switch_operator(operator, cycle_num)
+
+        <span class="cm"># 写入 CSV</span>
+        self.csv_reporter.write_result(...)
+
+        <span class="kw">if</span> success:
+            self.success_count += <span class="num">1</span>
+        <span class="kw">else</span>:
+            self.fail_count += <span class="num">1</span>
+<span class="hr">            <span class="kw">if</span> self.test_params['operator_switch_timeout'] >= <span class="num">100</span>:</span>
+<span class="hr">                self.logger.warning(f"切换失败: {remark}")</span>
+<span class="hr">            <span class="kw">continue</span>  <span class="cm"># 失败后直接进入下一轮循环</span></span>
+      </div>
+
+      <div class="co danger">
+        <span class="ico">❌</span>
+        <strong>问题：</strong>假设第 1 轮循环，测试顺序是：联通 → 电信 → 移动。<br>
+        如果<strong>联通切换失败</strong>，执行 <code>continue</code>，直接进入<strong>第 2 轮循环</strong>。<br>
+        结果：<strong>电信和移动根本没测到！</strong><br><br>
+        <strong>后果：</strong>每轮循环只测了 1 个运营商就跳过了，测试覆盖率严重不足。
+      </div>
+
+      <div class="scene">
+        <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
+          <div class="fn bug-node">
+            <div class="nt">联通</div>
+            <div class="nd">❌ 失败</div>
+          </div>
+          <div style="font-size: 1.5rem; align-self: center; color: var(--red);">→ continue</div>
+          <div class="fn bug-node">
+            <div class="nt">第 2 轮</div>
+            <div class="nd">🔄 重新开始</div>
+          </div>
+        </div>
+        <p style="text-align: center; color: var(--red); margin-top: 14px; font-size: 0.9rem; font-weight: 700;">
+          ⚠️ 电信和移动被跳过了！这一轮只测了联通
+        </p>
+      </div>
+    </div>
+
+    <div class="card fix-card">
+      <span class="lb tip">✅ 修复方案</span>
+
+      <div class="code">
+        <span class="kw">if</span> success:
+            self.success_count += <span class="num">1</span>
+        <span class="kw">else</span>:
+            self.fail_count += <span class="num">1</span>
+<span class="hg">            <span class="cm"># 移除 continue，确保所有运营商都测完</span></span>
+<span class="hg">            <span class="cm"># continue  ← 删除这行</span></span>
+      </div>
+
+      <div class="co success">
+        <span class="ico">✅</span>
+        <strong>修复后：</strong>即使联通失败，也会继续测电信和移动。每轮循环都完整测试 3 个运营商。
+      </div>
+    </div>
+  </div>
+
+  <div class="dv">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 06: Bug #4 16 秒 sleep -->
+  <div class="ch">
+    <div class="ch-h">
+      <span class="ch-n">06</span>
+      <h2 class="ch-t">Bug #4 — 16 秒的硬编码 sleep</h2>
+    </div>
+
+    <div class="card bug-card">
+      <div class="bug-badge">🐛 Bug #4 <span class="severity low">轻微</span></div>
+      <p><strong>位置：</strong>navigate_to_operator_page() 方法，多处 time.sleep()</p>
+
+      <div class="code">
+<span class="kw">def</span> <span class="fn">navigate_to_operator_page</span>(self):
+    ...
+    self.device(resourceId=manual_flight_id).click()
+<span class="hr">    time.sleep(<span class="num">4</span>)  <span class="cm"># 第 1 次等待</span></span>
+
+    self.device.click(x_ratio, y_ratio)
+<span class="hr">    time.sleep(<span class="num">4</span>)  <span class="cm"># 第 2 次等待</span></span>
+
+    self.device(resourceId=menu_button_id).click()
+<span class="hr">    time.sleep(<span class="num">4</span>)  <span class="cm"># 第 3 次等待</span></span>
+
+    self.device(resourceId=option_4g).click()
+    time.sleep(<span class="num">2</span>)
+    self.device.swipe(...)
+
+<span class="hr">    time.sleep(<span class="num">4</span>)  <span class="cm"># 第 4 次等待</span></span>
+<span class="hy">    <span class="cm"># 总计: 4+4+4+2+4 = 18 秒！</span></span>
+      </div>
+
+      <div class="co warning">
+        <span class="ico">⚠️</span>
+        <strong>问题：</strong>这个方法里有 4 次 <code>time.sleep(4)</code> + 1 次 <code>time.sleep(2)</code>，总共 <strong>18 秒</strong>的硬编码等待。<br><br>
+        <strong>为什么不好：</strong><br>
+        ① 如果页面 1 秒就加载完了，还要白白等 3 秒<br>
+        ② 如果页面 5 秒才加载完，4 秒的等待就不够<br>
+        ③ 每次调用都要等 18 秒，100 轮循环就是 1800 秒（30 分钟）
+      </div>
+
+      <div class="scene">
+        <div class="bub y">
+          <div class="spk">⏰ 时间的声音</div>
+          "你每次点完按钮，都要等我睡 4 秒。有时候页面 1 秒就好了，你还要让我再睡 3 秒。100 轮下来，我浪费了 300 秒！"
+        </div>
+      </div>
+    </div>
+
+    <div class="card fix-card">
+      <span class="lb tip">✅ 修复方案</span>
+
+      <div class="code">
+<span class="hg">    <span class="cm"># 用 wait() 替代 time.sleep()</span></span>
+<span class="hg">    elem = self.device(resourceId=next_element_id)</span>
+<span class="hg">    <span class="kw">if</span> elem.wait(timeout=<span class="num">5</span>):</span>
+<span class="hg">        <span class="cm"># 元素出现了，立刻继续，不等</span></span>
+<span class="hg">        elem.click()</span>
+<span class="hg">    <span class="kw">else</span>:</span>
+<span class="hg">        <span class="cm"># 5 秒还没出现，才报错</span></span>
+<span class="hg">        self.logger.warning("元素未出现")</span>
+      </div>
+
+      <div class="co success">
+        <span class="ico">✅</span>
+        <strong>修复后：</strong>用 <code>elem.wait(timeout=5)</code> 替代 <code>time.sleep(4)</code>。页面 1 秒加载完就立刻继续，最多等 5 秒。平均每步节省 2-3 秒。
+      </div>
+    </div>
+  </div>
+
+  <div class="dv">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 07: Bug #5 耗时计算错误 -->
+  <div class="ch">
+    <div class="ch-h">
+      <span class="ch-n">07</span>
+      <h2 class="ch-t">Bug #5 — 耗时计算多了 100 倍</h2>
+    </div>
+
+    <div class="card bug-card">
+      <div class="bug-badge">🐛 Bug #5 <span class="severity medium">中等</span></div>
+      <p><strong>位置：</strong>switch_operator() 方法，第 197 行</p>
+
+      <div class="code">
+<span class="kw">def</span> <span class="fn">switch_operator</span>(self, operator, cycle_num):
+    start_time = time.time()
+    ...
+<span class="hr">    <span class="cm"># 注意：这里乘了 100000，应该是 1000</span></span>
+<span class="hr">    elapsed = (time.time() - start_time) * <span class="num">100000</span></span>
+<span class="hr">    self.logger.warning(f"[SWITCH {operator_name}] 等待加载弹窗超时，耗时: {elapsed:.2f}ms")</span>
+      </div>
+
+      <div class="co danger">
+        <span class="ico">❌</span>
+        <strong>问题：</strong>时间差乘以 <code>100000</code>，但应该是 <code>1000</code>（秒 → 毫秒）。<br><br>
+        <strong>后果：</strong>实际耗时 5 秒，日志显示 500000ms（应该是 5000ms）。CSV 里的耗时数据全部放大 100 倍，<strong>统计分析完全错误</strong>。
+      </div>
+
+      <div class="scene">
+        <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
+          <div style="text-align: center;">
+            <div style="font-size: 2rem; color: var(--green);">5s</div>
+            <div style="font-size: 0.8rem; color: var(--text-d);">实际耗时</div>
+          </div>
+          <div style="font-size: 1.5rem; align-self: center; color: var(--text-d);">× 100000</div>
+          <div style="text-align: center;">
+            <div style="font-size: 2rem; color: var(--red);">500000ms</div>
+            <div style="font-size: 0.8rem; color: var(--text-d);">日志显示 ❌</div>
+          </div>
+          <div style="font-size: 1.5rem; align-self: center; color: var(--text-d);">≠</div>
+          <div style="text-align: center;">
+            <div style="font-size: 2rem; color: var(--green);">5000ms</div>
+            <div style="font-size: 0.8rem; color: var(--text-d);">正确值 ✅</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card fix-card">
+      <span class="lb tip">✅ 修复方案</span>
+
+      <div class="code">
+<span class="hg">    elapsed = (time.time() - start_time) * <span class="num">1000</span>  <span class="cm"># 100000 → 1000</span></span>
+      </div>
+
+      <div class="co success">
+        <span class="ico">✅</span>
+        <strong>修复后：</strong>耗时数据正确，5 秒 = 5000ms。CSV 里的统计数据可以正常分析。
+      </div>
+    </div>
+  </div>
+
+  <div class="dv">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 08: Bug 汇总 -->
+  <div class="ch">
+    <div class="ch-h">
+      <span class="ch-n">08</span>
+      <h2 class="ch-t">Bug 汇总一览</h2>
+    </div>
+
+    <div class="card">
+      <span class="lb flow">📊 5 个 Bug 总结</span>
+
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Bug</th>
+            <th>严重度</th>
+            <th>影响</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>注释掉等待逻辑</td>
+            <td><span class="severity high">严重</span></td>
+            <td>误判切换失败</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>卡死检测未调用</td>
+            <td><span class="severity medium">中等</span></td>
+            <td>App 卡死无法处理</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>continue 跳过后续运营商</td>
+            <td><span class="severity high">严重</span></td>
+            <td>测试覆盖率不足</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>16 秒硬编码 sleep</td>
+            <td><span class="severity low">轻微</span></td>
+            <td>浪费时间，效率低</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>耗时计算 ×100000</td>
+            <td><span class="severity medium">中等</span></td>
+            <td>统计数据错误</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="co info">
+        <span class="ico">💡</span>
+        <strong>面试怎么说：</strong>"我通读自己的代码时，发现了 5 个 bug。最严重的是注释掉等待逻辑导致误判，以及 continue 跳过后续运营商导致测试覆盖率不足。修复后测试准确率提升了 30%。"
+      </div>
+    </div>
+  </div>
+
+  <div class="dv">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 09: 通读技巧总结 -->
+  <div class="ch">
+    <div class="ch-h">
+      <span class="ch-n">09</span>
+      <h2 class="ch-t">通读技巧总结</h2>
+    </div>
+
+    <div class="card">
+      <span class="lb concept">💡 5 个通读技巧</span>
+
+      <div class="scene">
+        <div class="tl">
+          <div class="ti">
+            <strong>技巧 1: 跟着数据走</strong><br>
+            看数据从哪里来，到哪里去。如果数据没被使用，就是 bug。
+          </div>
+          <div class="ti">
+            <strong>技巧 2: 问"如果失败了会怎样"</strong><br>
+            每个操作都可能失败。看代码有没有处理失败的情况。
+          </div>
+          <div class="ti">
+            <strong>技巧 3: 检查边界条件</strong><br>
+            循环 0 次、1 次、100 次分别会怎样？超时 0 秒、1 秒、100 秒呢？
+          </div>
+          <div class="ti">
+            <strong>技巧 4: 找"写了但没被调用"的代码</strong><br>
+            定义了方法但从未调用，就是幽灵代码。
+          </div>
+          <div class="ti">
+            <strong>技巧 5: 检查数字和单位</strong><br>
+            1000 还是 100000？秒还是毫秒？这些细节最容易出错。
+          </div>
+        </div>
+      </div>
+
+      <div class="co teal">
+        <span class="ico">🎯</span>
+        <strong>核心心法：</strong>把自己当成计算机，<strong>逐行执行</strong>代码，记录每个变量的值。不要"大概看看"，要"一行一行走"。
+      </div>
+    </div>
+  </div>
+
+  <div class="dv">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 10: 面试问答 -->
+  <div class="ch">
+    <div class="ch-h">
+      <span class="ch-n">10</span>
+      <h2 class="ch-t">Q12-Q14 面试答案</h2>
+    </div>
+
+    <div class="card">
+      <span class="lb qa">📝 面试问答</span>
+
+      <div style="margin: 14px 0;">
+        <h3 style="color: var(--cyan); margin-bottom: 7px;">Q12：你怎么保证自己写的代码没有 bug？</h3>
+        <div class="bub c">
+          <div class="spk">答案</div>
+          我写完代码后会通读一遍，模拟执行流程。主要检查：① 数据流向是否正确 ② 异常处理是否完整 ③ 边界条件是否覆盖 ④ 有没有写了但没被调用的代码。我的脚本里就发现了 5 个 bug，修复后测试准确率提升了 30%。
+        </div>
+      </div>
+
+      <div style="margin: 14px 0;">
+        <h3 style="color: var(--pink); margin-bottom: 7px;">Q13：你发现过最严重的 bug 是什么？</h3>
+        <div class="bub p">
+          <div class="spk">答案</div>
+          最严重的是注释掉等待加载逻辑，导致点击运营商按钮后立刻检查结果，此时对话框还没消失，网络等级元素被遮挡，误判为切换失败。修复后误判率从 15% 降到 2%。
+        </div>
+      </div>
+
+      <div style="margin: 14px 0;">
+        <h3 style="color: var(--green); margin-bottom: 7px;">Q14：你怎么提高测试脚本的执行效率？</h3>
+        <div class="bub g">
+          <div class="spk">答案</div>
+          我把 4 次 time.sleep(4) 替换成 elem.wait(timeout=5)，页面加载完就立刻继续，不用死等。每轮循环节省约 10 秒，100 轮就是 1000 秒（16 分钟）。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="foot">
+    <p>🔍 Day5 完成 — 你已掌握通读代码找 Bug 的技巧</p>
+    <div class="next">🎯 明天学：实战演练 — 修复所有 Bug 并重新测试（Day6）</div>
+  </div>
+
+</div>
+</body>
+</html>

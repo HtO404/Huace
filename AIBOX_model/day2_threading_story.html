@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>线程冒险记 — 守护线程的故事</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&family=ZCOOL+KuaiLe&display=swap');
+
+  :root {
+    --bg-dark: #0a0a1a;
+    --panel-bg: #12122a;
+    --panel-border: #3a3a6a;
+    --accent-cyan: #00e5ff;
+    --accent-pink: #ff4081;
+    --accent-yellow: #ffd600;
+    --accent-green: #69f0ae;
+    --accent-orange: #ff9100;
+    --text-primary: #e8e8f0;
+    --text-secondary: #a0a0c0;
+    --text-dim: #606080;
+    --danger: #ff1744;
+    --success: #00e676;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: 'Noto Sans SC', sans-serif;
+    line-height: 1.8;
+    overflow-x: hidden;
+  }
+
+  /* === 背景网格 === */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* === 标题 === */
+  .title-section {
+    text-align: center;
+    padding: 60px 20px 40px;
+    position: relative;
+  }
+
+  .title-section h1 {
+    font-family: 'ZCOOL KuaiLe', cursive;
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: titlePulse 3s ease-in-out infinite;
+  }
+
+  @keyframes titlePulse {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.3); }
+  }
+
+  .title-section .subtitle {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    margin-top: 10px;
+  }
+
+  /* === 章节 === */
+  .chapter {
+    margin: 50px 0;
+    animation: fadeInUp 0.8s ease-out both;
+  }
+
+  .chapter:nth-child(2) { animation-delay: 0.2s; }
+  .chapter:nth-child(3) { animation-delay: 0.4s; }
+  .chapter:nth-child(4) { animation-delay: 0.6s; }
+  .chapter:nth-child(5) { animation-delay: 0.8s; }
+  .chapter:nth-child(6) { animation-delay: 1.0s; }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .chapter-title {
+    font-family: 'ZCOOL KuaiLe', cursive;
+    font-size: 1.8rem;
+    color: var(--accent-cyan);
+    margin-bottom: 20px;
+    padding-left: 15px;
+    border-left: 4px solid var(--accent-cyan);
+  }
+
+  /* === 分镜面板 === */
+  .panel {
+    background: var(--panel-bg);
+    border: 2px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 25px;
+    margin: 20px 0;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+
+  .panel:hover {
+    border-color: var(--accent-cyan);
+  }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 3px;
+    background: linear-gradient(90deg, var(--accent-cyan), var(--accent-pink));
+  }
+
+  .panel-label {
+    display: inline-block;
+    background: var(--accent-cyan);
+    color: var(--bg-dark);
+    font-weight: 900;
+    font-size: 0.85rem;
+    padding: 2px 10px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+  }
+
+  .panel-label.danger { background: var(--danger); color: #fff; }
+  .panel-label.success { background: var(--success); color: var(--bg-dark); }
+  .panel-label.warning { background: var(--accent-orange); color: var(--bg-dark); }
+  .panel-label.info { background: var(--accent-yellow); color: var(--bg-dark); }
+
+  /* === 动画舞台 === */
+  .stage {
+    background: #0d0d20;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 15px 0;
+    min-height: 120px;
+    position: relative;
+    border: 1px dashed var(--panel-border);
+  }
+
+  /* === 角色 === */
+  .character {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 10px 20px;
+    transition: all 0.5s;
+  }
+
+  .character .icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    margin-bottom: 8px;
+    position: relative;
+  }
+
+  .character .name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .main-thread .icon {
+    background: linear-gradient(135deg, var(--accent-cyan), #0091ea);
+    box-shadow: 0 0 20px rgba(0,229,255,0.4);
+  }
+
+  .child-thread .icon {
+    background: linear-gradient(135deg, var(--accent-pink), #c51162);
+    box-shadow: 0 0 20px rgba(255,64,129,0.4);
+  }
+
+  .daemon-thread .icon {
+    background: linear-gradient(135deg, var(--accent-green), #00c853);
+    box-shadow: 0 0 20px rgba(105,240,174,0.4);
+  }
+
+  .zombie-thread .icon {
+    background: linear-gradient(135deg, #666, #333);
+    box-shadow: 0 0 20px rgba(100,100,100,0.3);
+  }
+
+  /* === 动画效果 === */
+  @keyframes walk {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(30px); }
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+  }
+
+  @keyframes glow {
+    0%, 100% { box-shadow: 0 0 10px rgba(0,229,255,0.3); }
+    50% { box-shadow: 0 0 30px rgba(0,229,255,0.8); }
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(-100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  @keyframes typewriter {
+    from { width: 0; }
+    to { width: 100%; }
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @keyframes vanish {
+    0% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0.3); }
+  }
+
+  .walking { animation: walk 2s ease-in-out infinite; }
+  .spinning { animation: spin 1s linear infinite; }
+  .pulsing { animation: pulse 1.5s ease-in-out infinite; }
+  .shaking { animation: shake 0.5s ease-in-out infinite; }
+  .glowing { animation: glow 2s ease-in-out infinite; }
+  .floating { animation: float 2s ease-in-out infinite; }
+  .vanishing { animation: vanish 1s ease-out forwards; }
+
+  /* === 对话气泡 === */
+  .speech-bubble {
+    background: #1a1a3a;
+    border: 2px solid var(--accent-cyan);
+    border-radius: 15px;
+    padding: 12px 18px;
+    margin: 10px 0;
+    position: relative;
+    display: inline-block;
+    max-width: 80%;
+  }
+
+  .speech-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 20px;
+    width: 0; height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-top: 10px solid var(--accent-cyan);
+  }
+
+  .speech-bubble.pink {
+    border-color: var(--accent-pink);
+  }
+  .speech-bubble.pink::after {
+    border-top-color: var(--accent-pink);
+  }
+
+  .speech-bubble.green {
+    border-color: var(--accent-green);
+  }
+  .speech-bubble.green::after {
+    border-top-color: var(--accent-green);
+  }
+
+  /* === 代码块 === */
+  .code-block {
+    background: #0a0a15;
+    border: 1px solid #2a2a4a;
+    border-radius: 8px;
+    padding: 15px 20px;
+    margin: 15px 0;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    position: relative;
+  }
+
+  .code-block .comment {
+    color: #6a9955;
+  }
+
+  .code-block .keyword {
+    color: #569cd6;
+  }
+
+  .code-block .string {
+    color: #ce9178;
+  }
+
+  .code-block .function {
+    color: #dcdcaa;
+  }
+
+  .code-block .number {
+    color: #b5cea8;
+  }
+
+  .code-block .decorator {
+    color: #c586c0;
+  }
+
+  .code-block .highlight-line {
+    background: rgba(255,64,129,0.15);
+    margin: 0 -20px;
+    padding: 0 20px;
+    border-left: 3px solid var(--accent-pink);
+  }
+
+  .code-block .highlight-cyan {
+    background: rgba(0,229,255,0.1);
+    margin: 0 -20px;
+    padding: 0 20px;
+    border-left: 3px solid var(--accent-cyan);
+  }
+
+  .code-block .highlight-green {
+    background: rgba(105,240,174,0.1);
+    margin: 0 -20px;
+    padding: 0 20px;
+    border-left: 3px solid var(--accent-green);
+  }
+
+  /* === 箭头连接 === */
+  .arrow-down {
+    text-align: center;
+    font-size: 2rem;
+    color: var(--accent-cyan);
+    margin: 10px 0;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  /* === 对比表格 === */
+  .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+  }
+
+  .compare-table th,
+  .compare-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border: 1px solid var(--panel-border);
+  }
+
+  .compare-table th {
+    background: #1a1a3a;
+    color: var(--accent-cyan);
+    font-weight: 700;
+  }
+
+  .compare-table tr:nth-child(even) {
+    background: rgba(255,255,255,0.02);
+  }
+
+  .compare-table .good { color: var(--success); }
+  .compare-table .bad { color: var(--danger); }
+
+  /* === 时间线 === */
+  .timeline {
+    position: relative;
+    padding-left: 30px;
+    margin: 20px 0;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--accent-cyan), var(--accent-pink));
+  }
+
+  .timeline-item {
+    position: relative;
+    margin: 15px 0;
+    padding: 12px 18px;
+    background: #1a1a3a;
+    border-radius: 8px;
+    border-left: 3px solid var(--accent-cyan);
+  }
+
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -26px;
+    top: 18px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 10px rgba(0,229,255,0.5);
+  }
+
+  .timeline-item.danger {
+    border-left-color: var(--danger);
+  }
+  .timeline-item.danger::before {
+    background: var(--danger);
+    box-shadow: 0 0 10px rgba(255,23,68,0.5);
+  }
+
+  .timeline-item.success {
+    border-left-color: var(--success);
+  }
+  .timeline-item.success::before {
+    background: var(--success);
+    box-shadow: 0 0 10px rgba(0,230,118,0.5);
+  }
+
+  /* === 重点提示 === */
+  .callout {
+    background: linear-gradient(135deg, rgba(0,229,255,0.1), rgba(255,64,129,0.1));
+    border: 1px solid var(--accent-cyan);
+    border-radius: 8px;
+    padding: 15px 20px;
+    margin: 20px 0;
+    position: relative;
+  }
+
+  .callout::before {
+    content: '💡';
+    position: absolute;
+    top: -12px;
+    left: 15px;
+    font-size: 1.5rem;
+    background: var(--bg-dark);
+    padding: 0 8px;
+  }
+
+  .callout.warning {
+    border-color: var(--accent-orange);
+    background: linear-gradient(135deg, rgba(255,145,0,0.1), rgba(255,64,129,0.1));
+  }
+  .callout.warning::before { content: '⚠️'; }
+
+  .callout.danger {
+    border-color: var(--danger);
+    background: linear-gradient(135deg, rgba(255,23,68,0.1), rgba(255,64,129,0.1));
+  }
+  .callout.danger::before { content: '🚨'; }
+
+  .callout.success {
+    border-color: var(--success);
+    background: linear-gradient(135deg, rgba(0,230,118,0.1), rgba(105,240,174,0.1));
+  }
+  .callout.success::before { content: '✅'; }
+
+  /* === 进度条动画 === */
+  .progress-bar {
+    height: 8px;
+    background: #1a1a3a;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 10px 0;
+  }
+
+  .progress-bar .fill {
+    height: 100%;
+    border-radius: 4px;
+    animation: progressFill 3s ease-in-out infinite;
+  }
+
+  .progress-bar .fill.cyan { background: var(--accent-cyan); }
+  .progress-bar .fill.pink { background: var(--accent-pink); }
+  .progress-bar .fill.green { background: var(--success); }
+
+  @keyframes progressFill {
+    0% { width: 0%; }
+    50% { width: 100%; }
+    100% { width: 0%; }
+  }
+
+  /* === 场景切换 === */
+  .scene-divider {
+    text-align: center;
+    margin: 40px 0;
+    font-size: 1.5rem;
+    color: var(--text-dim);
+  }
+
+  /* === 底部 === */
+  .footer {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-dim);
+    border-top: 1px solid var(--panel-border);
+    margin-top: 60px;
+  }
+
+  /* === 响应式 === */
+  @media (max-width: 600px) {
+    .panel { padding: 15px; }
+    .code-block { font-size: 0.8rem; padding: 10px 15px; }
+    .character .icon { width: 45px; height: 45px; font-size: 1.4rem; }
+    .speech-bubble { max-width: 95%; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- 标题 -->
+  <div class="title-section">
+    <h1>🧵 线程冒险记</h1>
+    <p class="subtitle">守护线程的故事 — 从阻塞到自由</p>
+  </div>
+
+  <!-- 第一章：为什么需要线程 -->
+  <div class="chapter">
+    <h2 class="chapter-title">第一章：为什么需要线程？</h2>
+
+    <div class="panel">
+      <span class="panel-label danger">问题场景</span>
+      <p><strong>你正在写一个自动化测试脚本</strong>，需要等待 Android 手机上的某个按钮出现：</p>
+
+      <div class="code-block">
+<span class="comment"># 脚本第 157 行</span>
+elem = self.device(resourceId="network_level")
+exists = elem.wait(timeout=200)  <span class="comment"># 最多等 200 秒</span>
+      </div>
+
+      <div class="stage">
+        <div class="character main-thread">
+          <div class="icon pulsing">👤</div>
+          <div class="name">主线程</div>
+        </div>
+        <span style="font-size:2rem; margin: 0 20px;">→</span>
+        <div class="character">
+          <div class="icon spinning">⏳</div>
+          <div class="name">wait(200s)</div>
+        </div>
+      </div>
+
+      <div class="speech-bubble">
+        主线程说："我调用 wait(200)，如果按钮 200 秒内不出现，我就一直等！"
+      </div>
+
+      <div class="callout danger">
+        <strong>致命问题：</strong>如果 uiautomator2 内部出 bug 了（比如 USB 断开、ADB 服务崩溃），<code>wait()</code> 会<strong>永远不返回</strong>！主线程被永久卡死，整个脚本停在这里，后面的循环、截图、日志全部动弹不得。这就是<strong>阻塞</strong>——像高速公路堵车，后面所有的车都动不了。
+      </div>
+    </div>
+
+    <div class="panel">
+      <span class="panel-label">阻塞的代价</span>
+      <div class="stage">
+        <div class="timeline">
+          <div class="timeline-item">
+            <strong>0 秒</strong>：调用 <code>elem.wait(timeout=200)</code>
+          </div>
+          <div class="timeline-item">
+            <strong>10 秒</strong>：按钮还没出现，继续等...
+          </div>
+          <div class="timeline-item">
+            <strong>100 秒</strong>：还在等...
+          </div>
+          <div class="timeline-item danger">
+            <strong>200 秒</strong>：超时返回 False（最好的情况）
+          </div>
+          <div class="timeline-item danger">
+            <strong>∞ 秒</strong>：uiautomator2 内部卡死，<strong>永远不返回</strong>（最坏的情况）
+          </div>
+        </div>
+      </div>
+
+      <div class="callout warning">
+        <strong>关键理解：</strong>阻塞 ≠ 慢。阻塞是<strong>完全失去控制权</strong>。你调了 wait()，在返回之前你什么都做不了——不能取消、不能跳过、不能记录日志。你的程序命运交给了第三方库。
+      </div>
+    </div>
+  </div>
+
+  <div class="scene-divider">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 第二章：线程是怎么救场的 -->
+  <div class="chapter">
+    <h2 class="chapter-title">第二章：线程是怎么救场的？</h2>
+
+    <div class="panel">
+      <span class="panel-label success">解决方案</span>
+      <p><strong>核心思路：</strong>把 wait() 放到另一个线程里跑，主线程不直接调用，而是通过 <code>join(秒数)</code> 控制最长等待时间。</p>
+
+      <div class="stage">
+        <div class="character main-thread">
+          <div class="icon glowing">👤</div>
+          <div class="name">主线程（你）</div>
+        </div>
+        <span style="font-size:2rem; margin: 0 20px;">📋</span>
+        <div class="character child-thread">
+          <div class="icon walking">🏃</div>
+          <div class="name">子线程（外卖小哥）</div>
+        </div>
+      </div>
+
+      <div class="speech-bubble pink">
+        主线程说："小哥，你去帮我等那个按钮，最多等 10 秒。10 秒没等到就回来告诉我！"
+      </div>
+
+      <div class="arrow-down">⬇️</div>
+
+      <div class="code-block">
+<span class="comment"># 脚本第 130-148 行：safe_wait 方法</span>
+<span class="keyword">def</span> <span class="function">safe_wait</span>(self, elem, timeout: <span class="keyword">float</span>) -> <span class="keyword">bool</span>:
+    result = [<span class="keyword">None</span>]       <span class="comment"># 纸条1：存结果</span>
+    completed = [<span class="keyword">False</span>]   <span class="comment"># 纸条2：存"干完没"</span>
+
+    <span class="keyword">def</span> <span class="function">wait_task</span>():
+        <span class="keyword">try</span>:
+            result[<span class="number">0</span>] = elem.wait(timeout=timeout)
+        <span class="keyword">except</span> <span class="keyword">Exception</span> <span class="keyword">as</span> e:
+            result[<span class="number">0</span>] = <span class="keyword">False</span>
+        <span class="keyword">finally</span>:
+            completed[<span class="number">0</span>] = <span class="keyword">True</span>   <span class="comment"># 写纸条：干完了！</span>
+
+    thread = threading.Thread(target=wait_task, daemon=<span class="keyword">True</span>)
+    thread.start()
+    thread.join(timeout + <span class="number">2</span>)
+
+    <span class="keyword">if not</span> completed[<span class="number">0</span>]:
+        <span class="keyword">return</span> <span class="keyword">False</span>    <span class="comment"># 纸条没写"干完了" → 超时了</span>
+    <span class="keyword">return</span> result[<span class="number">0</span>]
+      </div>
+    </div>
+
+    <div class="panel">
+      <span class="panel-label info">逐行拆解</span>
+
+      <div class="stage">
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 250px;">
+            <h3 style="color: var(--accent-cyan); margin-bottom: 10px;">📋 第 1-2 行：搞两个"纸条"传结果</h3>
+            <div class="code-block">
+result = [<span class="keyword">None</span>]      <span class="comment"># 拿个小纸条，写结果</span>
+completed = [<span class="keyword">False</span>]  <span class="comment"># 再拿个纸条，写"干完没"</span>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">
+              <strong>为什么不用普通变量？</strong>因为线程内外不能直接共享普通变量（Python 的闭包特性），得用<strong>列表</strong>这种容器。通俗说：两个纸条塞到外卖小哥手里，他填完递回来。
+            </p>
+          </div>
+
+          <div style="flex: 1; min-width: 250px;">
+            <h3 style="color: var(--accent-pink); margin-bottom: 10px;">🏃 第 4-9 行：外卖小哥的任务</h3>
+            <div class="code-block">
+<span class="keyword">def</span> <span class="function">wait_task</span>():
+    <span class="keyword">try</span>:
+        result[<span class="number">0</span>] = elem.wait(timeout=timeout)
+    <span class="keyword">except</span>:
+        result[<span class="number">0</span>] = <span class="keyword">False</span>
+    <span class="keyword">finally</span>:
+        completed[<span class="number">0</span>] = <span class="keyword">True</span>   <span class="comment"># 写纸条：干完了！</span>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">
+              外卖小哥做的事：去等 <code>wait()</code>，无论成不成，最后在纸条上写"干完了"。
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <span class="panel-label">核心三剑客：start / join / daemon</span>
+
+      <div class="stage">
+        <div class="timeline">
+          <div class="timeline-item">
+            <strong>第 11 行：叫外卖</strong><br>
+            <code>thread = threading.Thread(target=wait_task, daemon=True)</code><br>
+            <span style="color: var(--text-secondary);">target=wait_task — 告诉小哥要干啥（去跑腿）</span><br>
+            <span style="color: var(--accent-green);">daemon=True — 超重要！后面单独讲</span>
+          </div>
+          <div class="timeline-item">
+            <strong>第 12 行：让小哥出发</strong><br>
+            <code>thread.start()</code><br>
+            <span style="color: var(--text-secondary);">start() 一执行，wait_task() 立刻开始跑，主线程继续往下走，不卡住。</span>
+          </div>
+          <div class="timeline-item">
+            <strong>第 13 行：你说"最多等 timeout+2 秒"</strong><br>
+            <code>thread.join(timeout + 2)</code><br>
+            <span style="color: var(--text-secondary);">join(秒数) 的意思：主线程说"我给你 timeout+2 秒时间，你再不回来我就不等了"</span>
+          </div>
+          <div class="timeline-item success">
+            <strong>第 15-16 行：看纸条判断</strong><br>
+            <code>if not completed[0]: return False</code><br>
+            <span style="color: var(--text-secondary);">纸条没写"干完了" → 超时了，返回 False</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>关键理解：join() 本身也是阻塞的！</strong>只不过它有个最长等待时间。join(10) 的意思是："我最多等你 10 秒，10 秒后不管你干没干完，我都要继续往下走了。"
+      </div>
+    </div>
+  </div>
+
+  <div class="scene-divider">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 第三章：daemon=True 是什么 -->
+  <div class="chapter">
+    <h2 class="chapter-title">第三章：daemon=True 是什么？→ 救命的设置</h2>
+
+    <div class="panel">
+      <span class="panel-label danger">没有 daemon=True 的大灾难</span>
+
+      <div class="stage">
+        <div class="character main-thread">
+          <div class="icon">👤</div>
+          <div class="name">主线程</div>
+        </div>
+        <span style="font-size:2rem; margin: 0 20px;">→</span>
+        <div class="character zombie-thread">
+          <div class="icon shaking">💀</div>
+          <div class="name">僵尸线程</div>
+        </div>
+      </div>
+
+      <div class="timeline">
+        <div class="timeline-item danger">
+          <strong>主线程：</strong>join(10) → 10秒到了 → "不等了，继续干"
+        </div>
+        <div class="timeline-item danger">
+          <strong>外卖小哥：</strong>还在跑，没人管 → 变成<strong>"僵尸线程"</strong>
+        </div>
+        <div class="timeline-item danger">
+          <strong>脚本要结束时：</strong>主线程想退出 → 但外卖小哥还在跑
+        </div>
+        <div class="timeline-item danger">
+          <strong>Python：</strong>前台线程没结束，不准退出！ → <strong>脚本卡死在退出前</strong>
+        </div>
+      </div>
+
+      <div class="callout danger">
+        <strong>灾难后果：</strong>你的测试脚本跑完了，想退出。但 Python 进程卡住了，永远不退！因为子线程还在后台跑（可能还在等一个永远不会出现的按钮）。你只能手动 kill 进程。
+      </div>
+    </div>
+
+    <div class="panel">
+      <span class="panel-label success">有了 daemon=True</span>
+
+      <div class="stage">
+        <div class="character main-thread">
+          <div class="icon glowing">👤</div>
+          <div class="name">主线程</div>
+        </div>
+        <span style="font-size:2rem; margin: 0 20px;">→</span>
+        <div class="character daemon-thread">
+          <div class="icon floating">👻</div>
+          <div class="name">守护线程</div>
+        </div>
+      </div>
+
+      <div class="timeline">
+        <div class="timeline-item success">
+          <strong>外卖小哥是"临时工"</strong> → 主线程一退出，小哥自动消失
+        </div>
+        <div class="timeline-item success">
+          <strong>不会变成僵尸线程</strong>，不会卡死
+        </div>
+        <div class="timeline-item success">
+          <strong>Python 进程正常退出</strong>，干干净净
+        </div>
+      </div>
+
+      <div class="callout success">
+        <strong>面试答案：</strong>Q：daemon=True 是什么意思？<br>
+        A：守护线程。主线程结束时，守护线程会自动销毁。不加的话，子线程不结束，整个 Python 进程就退不了。
+      </div>
+    </div>
+
+    <div class="panel">
+      <span class="panel-label info">对比表</span>
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>特性</th>
+            <th>daemon=True（守护线程）</th>
+            <th>daemon=False（前台线程）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>主线程退出时</td>
+            <td class="good">子线程自动销毁</td>
+            <td class="bad">Python 等子线程结束才退出</td>
+          </tr>
+          <tr>
+            <td>子线程卡死时</td>
+            <td class="good">不影响主程序退出</td>
+            <td class="bad">整个进程卡住</td>
+          </tr>
+          <tr>
+            <td>适用场景</td>
+            <td>后台任务、超时保护</td>
+            <td>必须完成的重要任务</td>
+          </tr>
+          <tr>
+            <td>你的脚本</td>
+            <td class="good">✅ 正确使用了</td>
+            <td class="bad">❌ 不加会出 bug</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="scene-divider">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 第四章：超时装饰器 -->
+  <div class="chapter">
+    <h2 class="chapter-title">第四章：超时装饰器 — 给任何函数加"保险丝"</h2>
+
+    <div class="panel">
+      <span class="panel-label">装饰器是什么？</span>
+      <p>装饰器就是一个<strong>函数包装器</strong>。它把一个函数包起来，在不改变原函数代码的前提下，给它加上额外的功能。</p>
+
+      <div class="stage">
+        <div style="text-align: center; font-size: 1.2rem;">
+          <div style="display: inline-block; padding: 10px 20px; background: #1a1a3a; border-radius: 8px; border: 2px solid var(--accent-cyan);">
+            原函数 <code>func()</code>
+          </div>
+          <span style="font-size: 2rem; margin: 0 15px;">→</span>
+          <div style="display: inline-block; padding: 10px 20px; background: #1a1a3a; border-radius: 8px; border: 2px solid var(--accent-pink);">
+            🎁 包装后 <code>@timeout_decorator(30)</code>
+          </div>
+          <span style="font-size: 2rem; margin: 0 15px;">→</span>
+          <div style="display: inline-block; padding: 10px 20px; background: #1a1a3a; border-radius: 8px; border: 2px solid var(--accent-green);">
+            最多执行 30 秒，超时自动返回
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <span class="panel-label">完整代码拆解</span>
+
+      <div class="code-block">
+<span class="comment"># 脚本第 32-59 行</span>
+<span class="keyword">def</span> <span class="function">timeout_decorator</span>(timeout_seconds, default_return=<span class="keyword">None</span>):
+    <span class="keyword">def</span> <span class="function">decorator</span>(func):                    <span class="comment"># 第一层：接收被装饰的函数</span>
+        @wraps(func)
+        <span class="keyword">def</span> <span class="function">wrapper</span>(*args, **kwargs):       <span class="comment"># 第二层：接收函数的参数</span>
+            result = [<span class="keyword">None</span>]                  <span class="comment"># 纸条1：结果</span>
+            exception = [<span class="keyword">None</span>]               <span class="comment"># 纸条2：异常</span>
+            completed = [<span class="keyword">False</span>]              <span class="comment"># 纸条3：干完没</span>
+
+            <span class="keyword">def</span> <span class="function">target</span>():
+                <span class="keyword">try</span>:
+                    result[<span class="number">0</span>] = func(*args, **kwargs)  <span class="comment"># 执行原函数</span>
+                <span class="keyword">except</span> <span class="keyword">Exception</span> <span class="keyword">as</span> e:
+                    exception[<span class="number">0</span>] = e         <span class="comment"># 捕获异常存起来</span>
+                <span class="keyword">finally</span>:
+                    completed[<span class="number">0</span>] = <span class="keyword">True</span>      <span class="comment"># 写纸条：干完了</span>
+
+<span class="highlight-cyan">            thread = threading.Thread(target=target, daemon=<span class="keyword">True</span>)</span>
+<span class="highlight-cyan">            thread.start()</span>
+<span class="highlight-cyan">            thread.join(timeout_seconds)</span>
+
+<span class="highlight-green">            <span class="keyword">if not</span> completed[<span class="number">0</span>]:</span>
+<span class="highlight-green">                <span class="keyword">return</span> default_return        <span class="comment"># 超时了，返回默认值</span></span>
+<span class="highlight-green">            <span class="keyword">if</span> exception[<span class="number">0</span>]:</span>
+<span class="highlight-green">                <span class="keyword">raise</span> exception[<span class="number">0</span>]           <span class="comment"># 有异常，抛出来</span></span>
+<span class="highlight-green">            <span class="keyword">return</span> result[<span class="number">0</span>]                 <span class="comment"># 正常返回结果</span></span>
+        <span class="keyword">return</span> wrapper
+    <span class="keyword">return</span> decorator
+      </div>
+
+      <div class="callout">
+        <strong>三层嵌套的理解：</strong><br>
+        第 1 层 <code>timeout_decorator(timeout_seconds)</code> — 接收超时参数<br>
+        第 2 层 <code>decorator(func)</code> — 接收被装饰的函数<br>
+        第 3 层 <code>wrapper(*args, **kwargs)</code> — 接收函数的参数，真正执行的地方
+      </div>
+    </div>
+
+    <div class="panel">
+      <span class="panel-label success">怎么用？</span>
+      <div class="code-block">
+<span class="comment"># 套在任何函数上，给它加超时保护</span>
+<span class="decorator">@timeout_decorator</span>(<span class="number">30</span>, default_return=<span class="keyword">False</span>)
+<span class="keyword">def</span> <span class="function">some_slow_function</span>():
+    <span class="comment"># 这个函数最多执行 30 秒</span>
+    <span class="comment"># 超时自动返回 False</span>
+    <span class="keyword">return</span> do_something_slow()
+      </div>
+
+      <p style="color: var(--text-secondary); margin-top: 15px;">
+        跟 <code>safe_wait</code> 一模一样的逻辑，只不过它是个装饰器，可以套在<strong>任何函数</strong>上，不用每次都手写线程代码。
+      </p>
+    </div>
+  </div>
+
+  <div class="scene-divider">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 第五章：join 超时后线程还在跑吗？ -->
+  <div class="chapter">
+    <h2 class="chapter-title">第五章：join 超时后，线程还在跑吗？</h2>
+
+    <div class="panel">
+      <span class="panel-label warning">重要概念</span>
+
+      <div class="stage">
+        <div class="character main-thread">
+          <div class="icon">👤</div>
+          <div class="name">主线程</div>
+        </div>
+        <span style="font-size:2rem; margin: 0 20px;">⏰ 10秒到了</span>
+        <div class="character child-thread">
+          <div class="icon walking">🏃</div>
+          <div class="name">子线程</div>
+        </div>
+      </div>
+
+      <div class="callout warning">
+        <strong>Q：thread.join(timeout) 超时后，原来的线程还在跑吗？</strong><br><br>
+        <strong>A：还在跑！</strong>线程不会因为 join() 超时就被杀掉。join() 只是说"我最多等你这么久"，它<strong>不会终止线程</strong>。线程会继续执行，直到它自己完成或者主进程退出（如果是守护线程的话）。
+      </div>
+
+      <div class="timeline">
+        <div class="timeline-item">
+          <strong>0 秒</strong>：thread.start() → 子线程开始跑
+        </div>
+        <div class="timeline-item">
+          <strong>10 秒</strong>：join(10) 超时 → 主线程说"不等了"，继续往下走
+        </div>
+        <div class="timeline-item danger">
+          <strong>10 秒后</strong>：子线程<strong>还在跑</strong>！它不知道主线程已经不等了
+        </div>
+        <div class="timeline-item success">
+          <strong>脚本退出时</strong>：因为 daemon=True，子线程被自动销毁
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>面试答案：</strong><br>
+        Q：join 超时后线程还在跑吗？<br>
+        A：还在跑。join() 超时只是让主线程不再等待，但子线程会继续执行。这也是为什么需要 daemon=True——它保证主线程结束后，子线程跟着消失。
+      </div>
+    </div>
+  </div>
+
+  <div class="scene-divider">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 第六章：safe_wait 的 bug -->
+  <div class="chapter">
+    <h2 class="chapter-title">第六章：safe_wait 的隐藏 Bug</h2>
+
+    <div class="panel">
+      <span class="panel-label danger">Bug 发现</span>
+
+      <div class="code-block">
+<span class="keyword">def</span> <span class="function">safe_wait</span>(self, elem, timeout: <span class="keyword">float</span>) -> <span class="keyword">bool</span>:
+    ...
+    thread.join(timeout + <span class="number">2</span>)   <span class="comment"># ← 这里有问题！</span>
+      </div>
+
+      <p>看 <code>safe_wait</code> 第 144 行：<code>thread.join(timeout + 2)</code></p>
+
+      <div class="callout danger">
+        <strong>问题 1：为什么加 2 秒？</strong><br>
+        假如用户调用 <code>self.safe_wait(elem, timeout=200)</code>，那 join(202) 就等 <strong>202 秒</strong>。你本意是"多等 2 秒给个缓冲"，但实际上主线程还是被卡住了 202 秒。
+      </div>
+
+      <div class="callout warning">
+        <strong>问题 2：safe_wait 跟直接用 wait() 有啥区别？</strong><br>
+        如果你的目的是"10 秒等不到就放弃"，那应该传 <code>timeout=10</code>，join(12)。但 <code>join(12)</code> 期间，主线程还是被卡住的。<br><br>
+        <strong>答案：</strong>safe_wait 防的是 <strong>uiautomator2 内部死锁</strong>（wait 永远不返回），而不是让你提前超时。如果 wait() 正常返回，safe_wait 和 wait() 效果一样。只有 wait() 卡死时，safe_wait 才能救场。
+      </div>
+    </div>
+  </div>
+
+  <div class="scene-divider">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+  <!-- 第七章：知识汇总 -->
+  <div class="chapter">
+    <h2 class="chapter-title">第七章：知识汇总 — 面试能说的</h2>
+
+    <div class="panel">
+      <span class="panel-label success">Q4-Q6 标准答案</span>
+
+      <div class="stage">
+        <div style="margin: 15px 0;">
+          <h3 style="color: var(--accent-cyan);">Q4：为什么 uiautomator2 本身有 wait()，你还要自己写线程超时？</h3>
+          <div class="speech-bubble green">
+            因为 wait() 如果内部卡死了（比如 USB 断开），它会永远不返回。用线程包装后，join(秒) 超时后主线程可以继续跑，不会被永久卡住。
+          </div>
+        </div>
+
+        <div style="margin: 15px 0;">
+          <h3 style="color: var(--accent-pink);">Q5：thread.join(timeout) 超时后，原来的线程还在跑吗？</h3>
+          <div class="speech-bubble pink">
+            还在跑！线程不会因为 join() 超时就被杀掉。这也是为什么需要 daemon=True——它保证主线程结束后，子线程跟着消失。
+          </div>
+        </div>
+
+        <div style="margin: 15px 0;">
+          <h3 style="color: var(--accent-green);">Q6：daemon=True 不加会怎样？</h3>
+          <div class="speech-bubble green">
+            不加 daemon，子线程是"前台线程"。脚本执行完退出时，Python 会等所有前台线程结束才退出。如果子线程卡死了，脚本就永远退不了。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <span class="panel-label info">核心概念对照表</span>
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>概念</th>
+            <th>一句话解释</th>
+            <th>类比</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>threading.Thread</code></td>
+            <td>创建一个新线程</td>
+            <td>叫一个外卖小哥</td>
+          </tr>
+          <tr>
+            <td><code>target=func</code></td>
+            <td>告诉线程要执行什么函数</td>
+            <td>告诉小哥要去哪跑腿</td>
+          </tr>
+          <tr>
+            <td><code>start()</code></td>
+            <td>让线程开始执行</td>
+            <td>让小哥出发</td>
+          </tr>
+          <tr>
+            <td><code>join(秒数)</code></td>
+            <td>主线程最多等这么久</td>
+            <td>说"最多等你 X 分钟"</td>
+          </tr>
+          <tr>
+            <td><code>daemon=True</code></td>
+            <td>主线程退出时子线程自动销毁</td>
+            <td>小哥是临时工，老板走了他也得走</td>
+          </tr>
+          <tr>
+            <td><code>result = [None]</code></td>
+            <td>用列表容器在线程间传值</td>
+            <td>给小哥一个纸条让他填结果</td>
+          </tr>
+          <tr>
+            <td>超时装饰器</td>
+            <td>给任何函数加超时保护</td>
+            <td>给任何任务加"保险丝"</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>🧵 线程冒险记 — 第 2 天学习内容</p>
+    <p style="margin-top: 10px; font-size: 0.9rem;">基于 d:\Hcode\AIBOX_model\运营商切换 copy.py 脚本</p>
+  </div>
+
+</div>
+</body>
+</html>
